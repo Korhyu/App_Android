@@ -4,15 +4,155 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@color/negro"
     tools:context=".AudioActivity">
+
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/guideline1"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        app:layout_constraintGuide_percent="0.1" />
+
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/guideline2"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        app:layout_constraintGuide_percent="0.2" />
+
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/guideline3"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        app:layout_constraintGuide_percent="0.8" />
+
+    <Button
+        android:id="@+id/button_ss"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Start/Stop"
+        app:layout_constraintBottom_toTopOf="@+id/guideline1"
+        app:layout_constraintEnd_toStartOf="@+id/button_test"
+        app:layout_constraintHorizontal_bias="0.5"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/guideline1" />
+
+
+    <Button
+        android:id="@+id/button_test"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:text="test"
+        android:visibility="gone"
+        app:layout_constraintBottom_toTopOf="@+id/guideline1"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.5"
+        app:layout_constraintStart_toEndOf="@+id/button_ss"
+        app:layout_constraintTop_toTopOf="@+id/guideline1"
+        tools:visibility="visible" />
+
+
+    <Switch
+        android:id="@+id/switch_ch1"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="@color/negro"
+        android:text="Canal1"
+        android:textColor="@color/blanco"
+        app:layout_constraintEnd_toStartOf="@+id/vol_ch1"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/guideline2"  />
+
+    <SeekBar
+        android:id="@+id/vol_ch1"
+        android:layout_width="200dp"
+        android:layout_height="20dp"
+        android:progressBackgroundTint="@color/blanco"
+        android:thumbTint="@color/color1"
+        app:layout_constraintBottom_toBottomOf="@+id/switch_ch1"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.5"
+        app:layout_constraintStart_toEndOf="@+id/switch_ch1"
+        app:layout_constraintTop_toTopOf="@+id/switch_ch1" />
+
+    <Switch
+        android:id="@+id/switch_ch2"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:background="@color/negro"
+        android:text="Canal2"
+        android:textColor="@color/blanco"
+        app:layout_constraintStart_toStartOf="@+id/switch_ch1"
+        app:layout_constraintTop_toBottomOf="@+id/switch_ch1" />
+
+    <SeekBar
+        android:id="@+id/vol_ch2"
+        android:layout_width="200dp"
+        android:layout_height="20dp"
+        android:progressBackgroundTint="@color/blanco"
+        android:thumbTint="@color/color1"
+        app:layout_constraintBottom_toBottomOf="@+id/switch_ch2"
+        app:layout_constraintStart_toStartOf="@+id/vol_ch1"
+        app:layout_constraintTop_toTopOf="@+id/switch_ch2" />
+
+    <Switch
+        android:id="@+id/switch_ch3"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:background="@color/negro"
+        android:text="Canal3"
+        android:textColor="@color/blanco"
+        app:layout_constraintStart_toStartOf="@+id/switch_ch1"
+        app:layout_constraintTop_toBottomOf="@+id/switch_ch2" />
+
+    <SeekBar
+        android:id="@+id/vol_ch3"
+        android:layout_width="200dp"
+        android:layout_height="20dp"
+        android:layout_marginBottom="7dp"
+        android:progressBackgroundTint="@color/blanco"
+        android:thumbTint="@color/color1"
+        app:layout_constraintBottom_toBottomOf="@+id/switch_ch3"
+        app:layout_constraintStart_toStartOf="@+id/vol_ch1"
+        app:layout_constraintTop_toTopOf="@+id/switch_ch3"  />
+
+    <Switch
+        android:id="@+id/switch_ch4"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:background="@color/negro"
+        android:text="Canal4"
+        android:textColor="@color/blanco"
+        app:layout_constraintStart_toStartOf="@+id/switch_ch1"
+        app:layout_constraintTop_toBottomOf="@+id/switch_ch3"  />
+
+    <SeekBar
+        android:id="@+id/vol_ch4"
+        android:layout_width="200dp"
+        android:layout_height="20dp"
+        android:progressBackgroundTint="@color/blanco"
+        android:thumbTint="@color/color1"
+        app:layout_constraintBottom_toBottomOf="@+id/switch_ch4"
+        app:layout_constraintStart_toStartOf="@+id/vol_ch1"
+        app:layout_constraintTop_toTopOf="@+id/switch_ch4" />
+
 
     <TextView
         android:id="@+id/textView"
         android:layout_width="223dp"
         android:layout_height="15dp"
+        android:background="@color/negro"
+        android:textColor="@color/blanco"
         android:text="Bien bien... ahora... mata a flanders"
-        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintBottom_toTopOf="@+id/guideline3"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="@+id/guideline3"
+        app:layout_constraintVertical_bias="0.229" />
 </androidx.constraintlayout.widget.ConstraintLayout>

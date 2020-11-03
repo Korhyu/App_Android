@@ -10,9 +10,9 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        val button_test = findViewById<Button>(R.id.button_test)
+        val button_prueba = findViewById<Button>(R.id.button_prueba)
 
-        button_test.setOnClickListener{
+        button_prueba.setOnClickListener{
             val intent = Intent(this, AudioActivity::class.java)
             startActivity(intent)
         }
