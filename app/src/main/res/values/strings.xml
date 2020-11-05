@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">TherpsiCORE</string>
+
+    <string name="network_name">"\"Mora\""</string>
 </resources>
