@@ -40,9 +40,11 @@ class MainActivity : AppCompatActivity() {
                 sleep(500)
                 val intent = Intent(this, AudioActivity::class.java)
                 startActivity(intent)
-
-//                openDialog()
             }
+            else {
+                openDialog()
+            }
+
         }
     }
 
