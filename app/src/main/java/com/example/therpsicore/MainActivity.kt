@@ -25,10 +25,12 @@ class MainActivity : AppCompatActivity() {
         val button_prueba = findViewById<Button>(R.id.button_prueba)
         val checkBox_red = findViewById<CheckBox>(R.id.checkBox_red)
 
-        button_prueba.setOnClickListener{
+        button_prueba.setOnClickListener {
             val intent = Intent(this, AudioActivity::class.java)
 
             Log.d("boton", "boton prueba actividad 1 pulsado")
+
+            //startActivity(intent)
 
             when(requestLocationPermission())
             {
@@ -44,6 +46,8 @@ class MainActivity : AppCompatActivity() {
             else {
                 openDialog()
             }
+
+
 
         }
     }
@@ -110,7 +114,7 @@ class MainActivity : AppCompatActivity() {
         dialogo.setTitle("Conexion WIFI ausente")
         dialogo.setMessage(
                 "Por favor conectese a la red correspondiende" +
-                        "\nNombre:\"Los de Chaca son\"\nPass: \"Todo_putos\"" +
+                        "\nNombre: "+ R.string.network_name + "\nPass: " + R.string.network_pass +
                         "\n\nLa contraseña es sin espacios y sin comillas. " +
                         "Por favor loguee en la red correspondiente para recibir el streaming"
         )
