@@ -24,12 +24,10 @@ import kotlin.math.sin
 
 
 
-
 class AudioActivity : AppCompatActivity() {
 
     private val RxMaxBuf=120*16*10
     private val power = 1
-    private var bufferRx = ByteArray(48100)
     private var bufferPlay = ShortArray(RxMaxBuf)
     private var prueba = ByteArray(999)
     private var outBufferRx:Int=0
@@ -47,14 +45,27 @@ class AudioActivity : AppCompatActivity() {
     var finalTime=0
     var carga=0
 
+    //Buffers
+    private var bufferRx = ByteArray(48100)
+    private var bufferProcesado = ByteArray(48100)
+
+    //Indices
+    var last_RX = 0                                     // Ultimo dato del buffer Rx enviado
+    var last_Pr = 0                                     // Ultimo dato del buffer Procesado enviado
+
 
     // Datos del audio
-    var buff_recv = 481
-    var bloque_datos = 800                          // 1 periodo de la de menor frecuencia son 80 muestras
-    var ultima_copia = 0
     private var samfreq = 40000
     private var audiobuffer = 2000
     private var sincbuffsize = 120
+
+
+    //Variables y valores auxiliares
+    var buff_recv = 481
+    var audio_chunk = 10                                // 10ms de "pedazo de audio"
+    val audio_chunk_sam = audio_chunk * (samfreq/1000)  // Audio chunk expresado en muestras
+    val recepcion = false                               // Cambiar esto a true cuando se reciva desde la BBB
+    var bufSin_index = audio_chunk_sam                  // Arranco a contar despues de la primer copa en inicializacion
 
 
     var mAudioTrack = AudioTrack(
@@ -74,16 +85,55 @@ class AudioActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_audio)
 
-        mAudioTrack.play();                 //mAudioTrack.stop();
-        Log.e("ERROR", "stado atrack ${mAudioTrack.state} y ${AudioTrack.PLAYSTATE_PLAYING}\n")
-        var startTime = System.nanoTime()
-        mAudioTrack.write(bufSin1, 0, bufSin1.size,AudioTrack.WRITE_BLOCKING)
-        Log.e("ERROR", "stado atrack ${mAudioTrack.state} y ${AudioTrack.PLAYSTATE_PLAYING}\n")
+        Thread.sleep(500)
+        init_audio()
 
-        Log.e("Measure", "TASK took write 3seg: " + ((System.nanoTime() - startTime) / 1000000) + "mS\n")
         rxRcv().execute()
 
+        // Thread que atiende el buffer de audio
+        // Pasa del bufProc al audioSink
+        thread(start = true, priority = THREAD_PRIORITY_AUDIO, name = "Control Audio") {
+            while(power==1) {
+                // Este if determina si estamos usando el buffer interno o la recepcion externa
+                mAudioTrack.write(bufSin1, bufSin_index, audio_chunk_sam, AudioTrack.WRITE_BLOCKING)
+                bufSin_index += audio_chunk_sam
+                bufSin_index %= bufSin1.size
 
+                //TODO reemplazar estos sleep por semaforos
+                Thread.sleep(audio_chunk.toLong() - 1 )
+                /*
+                if (recepcion == true) {
+                    //TODO manejo interno desde el buffer de recepcion al audio sink
+                } else {
+                    mAudioTrack.write(bufSin1, bufSin_index, audio_chunk_sam, AudioTrack.WRITE_BLOCKING)
+                    bufSin_index += audio_chunk_sam
+                    bufSin_index %= bufSin1.size
+
+                    //TODO reemplazar estos sleep por semaforos
+                    Thread.sleep(audio_chunk.toLong() - 1 )
+                }
+
+                 */
+            }
+        }
+
+        // Thread que atiende la recepcion de datos y la separa en canales
+        thread(start = true, priority = THREAD_PRIORITY_AUDIO, name = "Procesamiento y separacion Audio") {
+            var vivo = true
+            while(power==1 && vivo == true) {
+                // Este if determina si estamos usando el buffer interno o la recepcion externa
+                if (recepcion == true) {
+                    //TODO sacar del buffer RX, separar en canales y dejar en buffer procesado
+                } else {
+                    vivo = false
+                    Thread.yield()
+                }
+
+            }
+        }
+
+
+        /*
         //Thread de reproduccion de audio
         thread(start = true, priority = THREAD_PRIORITY_AUDIO, name = "Reproduccion Audio") { //THREAD_PRIORITY_AUDIO
             while(power==1){
@@ -148,10 +198,33 @@ class AudioActivity : AppCompatActivity() {
 //                else{Log.e("FAlTA BUFF PLAY", "$countBufferPlay \n")}
             }
         }
+        */
+    }
 
 
 
 
+    //Funcion de preparacion del audio
+    private fun init_audio () {
+
+        mAudioTrack.play();                 //mAudioTrack.stop();
+
+        Log.e("ERROR", "stado atrack ${mAudioTrack.state} y ${AudioTrack.PLAYSTATE_PLAYING}\n")
+
+        var startTime = System.nanoTime()
+
+        if (recepcion == true) {
+            //TODO manejo interno desde el buffer de recepcion al audio sink
+        }
+        else
+        {
+            // La primera vez escribo 10 chunks porque me piacce, esto despues se va a cambiar por la recepcion
+            mAudioTrack.write(bufSin1, 0, audio_chunk_sam,AudioTrack.WRITE_BLOCKING)        //Toma del buffer sinc nada mas
+
+        }
+
+        Log.e("ERROR", "stado atrack ${mAudioTrack.state} y ${AudioTrack.PLAYSTATE_PLAYING}\n")
+        Log.e("Measure", "TASK took write 3seg: " + ((System.nanoTime() - startTime) / 1000000) + "mS\n")
     }
 
 
@@ -163,7 +236,6 @@ class AudioActivity : AppCompatActivity() {
         var cant_canales = 4                //Inicializo en 4 porque descuento los canales apagados (al principio los 4 apagados // )
         var sw_status = arrayOf(0,0,0,0)    //Estado de los switchs para evitar el uso de funciones mas complejas
         var vol_status = arrayOf(0,0,0,0)   //Estado de los sliders de volumen
-
 
 
 
@@ -183,7 +255,7 @@ class AudioActivity : AppCompatActivity() {
                 Log.e("Config Socket", "Socket OK - Esperando paquetes")
 
 
-
+                /*
                 while (power == 1) {
 //                    if (countBufferRx < 10) {
 //                        var startTime = System.nanoTime()
@@ -198,6 +270,10 @@ class AudioActivity : AppCompatActivity() {
                     inBufferRx+=buff_recv*2         //Indice buffer
                     inBufferRx %= buff_recv*10      //Buffer circular
                 }
+
+                 */
+
+
 
             }
             return "terminamo"
