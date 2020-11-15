@@ -4,6 +4,8 @@ import android.content.Context
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
+import android.media.AudioTrack.PLAYSTATE_PLAYING
+import android.media.AudioTrack.PLAYSTATE_STOPPED
 import android.net.ConnectivityManager
 import android.os.AsyncTask
 import android.os.Build
@@ -70,8 +72,13 @@ class AudioActivity : AppCompatActivity() {
 
     //Buffers
     private var bufferRx = ByteArray(48100)
-    private var bufferProcesado = ShortArray(48100)
+    private var bufferProcesado = ShortArray(audio_chunkS_sam)
     private var audio_chunk = ShortArray(audio_chunkS_sam)
+    private var audio_ch1 = ShortArray(audio_chunkS_sam)
+    private var audio_ch2 = ShortArray(audio_chunkS_sam)
+    private var audio_ch3 = ShortArray(audio_chunkS_sam)
+    private var audio_ch4 = ShortArray(audio_chunkS_sam)
+
 
 
     // Buffers de tonos auxiliares
@@ -112,7 +119,7 @@ class AudioActivity : AppCompatActivity() {
         thread(start = true, priority = THREAD_PRIORITY_AUDIO, name = "Control Audio") {
             while(power==1) {
 
-                semEnvio.acquire()                          //Pido el semaforo de envio, si no esta libre es que no hay datos para enviar al sink
+                semEnvio.acquireUninterruptibly()                          //Pido el semaforo de envio, si no esta libre es que no hay datos para enviar al sink
 
                 mAudioTrack.write(audio_chunk, 0, audio_chunkS_sam, AudioTrack.WRITE_BLOCKING)
                 //Thread.sleep(audio_chunkS.toLong() - 1)
@@ -141,12 +148,21 @@ class AudioActivity : AppCompatActivity() {
             while(power==1) {
                 // Este if determina si estamos usando el buffer interno o la recepcion externa
                 if (recepcion == true) {
-                    //TODO sacar del buffer RX, separar en canales y dejar en buffer procesado
 
+                    //TODO hay que modificar esto para que haga lo mismo que abajo, revisar los switchs, el volumen etc.... quizas.... una funcion... no se
+                    for (i in 0 until audio_chunkS_sam step 8)
+                    {
+                        audio_ch1[i] = ((bufferRx[last_RX+i+0].toUByte().toInt() + (bufferRx[last_RX+i+1].toInt() shl 8))- 2047).toShort()
+                        audio_ch2[i] = ((bufferRx[last_RX+i+2].toUByte().toInt() + (bufferRx[last_RX+i+3].toInt() shl 8))- 2047).toShort()
+                        audio_ch3[i] = ((bufferRx[last_RX+i+4].toUByte().toInt() + (bufferRx[last_RX+i+5].toInt() shl 8))- 2047).toShort()
+                        audio_ch4[i] = ((bufferRx[last_RX+i+6].toUByte().toInt() + (bufferRx[last_RX+i+7].toInt() shl 8))- 2047).toShort()
+                    }
 
+                    last_RX += audio_chunkS_sam
+                    last_RX %= bufferRx.size
 
                 } else {
-
+                    // Este pedazo de codigo es para cuando se usan los buffers internos
                     var canCanales = sw_status.sum()
                     var dclvl = 2047 * canCanales
                     var knorm = 0
@@ -154,9 +170,12 @@ class AudioActivity : AppCompatActivity() {
 
                     if (canCanales == 0)
                     {
+                        // SI no hay canales encendidos, no tiene sentido liberar el semaforo ni sacar las cuentas
                         for (i in 0 until (audio_chunkS_sam-1)) {
                             audio_chunk[i] = 0.toShort()
                         }
+                        mAudioTrack.stop()
+                        Thread.yield()                                          //Suspendo el thread hasta que cambien los switchs
                     }
                     else
                     {
@@ -179,10 +198,18 @@ class AudioActivity : AppCompatActivity() {
                         }
 
                         last_Pr += audio_chunkS_sam
-                        last_Pr %= bufferProcesado.size
+                        last_Pr %= bufSin1.size
 
                         semEnvio.release()
-                        Thread.sleep(audio_chunkS.toLong() - 1)
+
+                        if(mAudioTrack.playState == PLAYSTATE_STOPPED)
+                        {
+                            mAudioTrack.play()
+                        }
+
+                        // Demora que simula la recepcion de datos nuevos, ese "-1" hace que luego
+                        // de varias reproducciones genere latencia en el encendido y apagaoo de los switchs
+                        Thread.sleep(audio_chunkS.toLong()-1)
                     }
                 }
             }
@@ -319,7 +346,7 @@ class AudioActivity : AppCompatActivity() {
     //Funcion de preparacion del audio
     private fun init_audio () {
 
-        mAudioTrack.play();                 //mAudioTrack.stop();
+        mAudioTrack.play()                 //mAudioTrack.stop();
 
         Log.e("ERROR", "stado atrack ${mAudioTrack.state} y ${AudioTrack.PLAYSTATE_PLAYING}\n")
 
