@@ -64,20 +64,20 @@ class AudioActivity : AppCompatActivity() {
 
     //Variables y valores auxiliares
     var buff_recv = 481
-    var audio_chunkS = 10                                   // 10ms de "pedazo de audio"
-    val audio_chunkS_sam = audio_chunkS * (samfreq/1000)    // Audio chunk expresado en muestras
-    val recepcion = false                                   // Cambiar esto a true cuando se reciva desde la BBB
-    var bufSin_index = audio_chunkS_sam                     // Arranco a contar despues de la primer copia en inicializacion
+    var audio_chunk_ms = 10                                     // Bloque de audio a escribir en el sink expresado en ms
+    val audio_chunk_sam = audio_chunk_ms * (samfreq/1000)       // Audio chunk expresado en muestras
+    val recepcion = false                                       // Cambiar esto a true cuando se reciva desde la BBB
+    var bufSin_index = audio_chunk_sam                          // Arranco a contar despues de la primer copia en inicializacion
 
 
     //Buffers
     private var bufferRx = ByteArray(48100)
-    private var bufferProcesado = ShortArray(audio_chunkS_sam)
-    private var audio_chunk = ShortArray(audio_chunkS_sam)
-    private var audio_ch1 = ShortArray(audio_chunkS_sam)
-    private var audio_ch2 = ShortArray(audio_chunkS_sam)
-    private var audio_ch3 = ShortArray(audio_chunkS_sam)
-    private var audio_ch4 = ShortArray(audio_chunkS_sam)
+    private var bufferProcesado = ShortArray(audio_chunk_sam)
+    private var audio_chunk = ShortArray(audio_chunk_sam)
+    private var audio_ch1 = ShortArray(audio_chunk_sam)
+    private var audio_ch2 = ShortArray(audio_chunk_sam)
+    private var audio_ch3 = ShortArray(audio_chunk_sam)
+    private var audio_ch4 = ShortArray(audio_chunk_sam)
 
 
 
@@ -119,69 +119,74 @@ class AudioActivity : AppCompatActivity() {
         thread(start = true, priority = THREAD_PRIORITY_AUDIO, name = "Control Audio") {
             while(power==1) {
 
-                semEnvio.acquireUninterruptibly()                          //Pido el semaforo de envio, si no esta libre es que no hay datos para enviar al sink
-
-                mAudioTrack.write(audio_chunk, 0, audio_chunkS_sam, AudioTrack.WRITE_BLOCKING)
-                //Thread.sleep(audio_chunkS.toLong() - 1)
-
-                /*
-
-
-                // Este if determina si estamos usando el buffer interno o la recepcion externa
-                // Depreciado, la discriminacion se hace ahora en el thread de procesamiento
                 if (recepcion == true) {
-                    //TODO manejo interno desde el buffer de recepcion al audio sink
-                } else {
-                    mAudioTrack.write(bufSin1, bufSin_index, audio_chunkS_sam, AudioTrack.WRITE_BLOCKING)
-                    bufSin_index += audio_chunkS_sam
-                    bufSin_index %= bufSin1.size
+                    for (i in 0 until audio_chunk_sam step 8) {
+                        audio_ch1[i] = ((bufferRx[last_RX + i + 0].toUByte().toInt() + (bufferRx[last_RX + i + 1].toInt() shl 8)) - 2047).toShort()
+                        audio_ch2[i] = ((bufferRx[last_RX + i + 2].toUByte().toInt() + (bufferRx[last_RX + i + 3].toInt() shl 8)) - 2047).toShort()
+                        audio_ch3[i] = ((bufferRx[last_RX + i + 4].toUByte().toInt() + (bufferRx[last_RX + i + 5].toInt() shl 8)) - 2047).toShort()
+                        audio_ch4[i] = ((bufferRx[last_RX + i + 6].toUByte().toInt() + (bufferRx[last_RX + i + 7].toInt() shl 8)) - 2047).toShort()
+                    }
 
-                    //TODO reemplazar estos sleep por semaforos
-                    Thread.sleep(audio_chunkS.toLong() - 1 )
+                    last_RX += audio_chunk_sam
+                    last_RX %= bufferRx.size
                 }
-                */
+                else
+                {
+                    // Demora que simula la recepcion de datos nuevos, ese "-1" hace que luego
+                    // de varias reproducciones genere latencia en el encendido y apagaoo de los switchs
+                    Thread.sleep(audio_chunk_ms.toLong()-1)
+                }
+
+                semEnvio.release()
             }
         }
 
         // Thread que atiende la recepcion de datos y la separa en canales
-        thread(start = true, priority = THREAD_PRIORITY_AUDIO, name = "Procesamiento y separacion Audio") {
+        thread(start = true, priority = THREAD_PRIORITY_AUDIO, name = "Procesamiento y envio de Audio") {
             while(power==1) {
-                // Este if determina si estamos usando el buffer interno o la recepcion externa
-                if (recepcion == true) {
 
-                    //TODO hay que modificar esto para que haga lo mismo que abajo, revisar los switchs, el volumen etc.... quizas.... una funcion... no se
-                    for (i in 0 until audio_chunkS_sam step 8)
-                    {
-                        audio_ch1[i] = ((bufferRx[last_RX+i+0].toUByte().toInt() + (bufferRx[last_RX+i+1].toInt() shl 8))- 2047).toShort()
-                        audio_ch2[i] = ((bufferRx[last_RX+i+2].toUByte().toInt() + (bufferRx[last_RX+i+3].toInt() shl 8))- 2047).toShort()
-                        audio_ch3[i] = ((bufferRx[last_RX+i+4].toUByte().toInt() + (bufferRx[last_RX+i+5].toInt() shl 8))- 2047).toShort()
-                        audio_ch4[i] = ((bufferRx[last_RX+i+6].toUByte().toInt() + (bufferRx[last_RX+i+7].toInt() shl 8))- 2047).toShort()
+                semEnvio.acquireUninterruptibly()                          //Pido el semaforo de envio, si no esta libre es que no hay datos para enviar al sink
+
+                var canCanales = sw_status.sum()
+                var dclvl = 2047 * canCanales
+                var knorm = 0
+                var aux = 0
+
+                if (canCanales == 0)
+                {
+                    // SI no hay canales encendidos, no tiene sentido liberar el semaforo ni sacar las cuentas
+                    for (i in 0 until (audio_chunk_sam-1)) {
+                        audio_chunk[i] = 0.toShort()
                     }
+                    mAudioTrack.stop()
+                    Thread.yield()                                          //Suspendo el thread hasta que cambien los switchs
+                }
+                else
+                {
+                    // Este if determina si estamos usando el buffer interno o la recepcion externa
+                    if (recepcion == true) {
 
-                    last_RX += audio_chunkS_sam
-                    last_RX %= bufferRx.size
+                        for (i in 0 until (audio_chunk_sam-1)) {
 
-                } else {
-                    // Este pedazo de codigo es para cuando se usan los buffers internos
-                    var canCanales = sw_status.sum()
-                    var dclvl = 2047 * canCanales
-                    var knorm = 0
-                    var aux = 0
+                            aux += audio_ch1[last_Pr + i] * sw_status[0]          //Canal 1
+                            aux += audio_ch2[last_Pr + i] * sw_status[1]          //Canal 2
+                            aux += audio_ch3[last_Pr + i] * sw_status[2]          //Canal 3
+                            aux += audio_ch4[last_Pr + i] * sw_status[3]          //Canal 4
 
-                    if (canCanales == 0)
-                    {
-                        // SI no hay canales encendidos, no tiene sentido liberar el semaforo ni sacar las cuentas
-                        for (i in 0 until (audio_chunkS_sam-1)) {
-                            audio_chunk[i] = 0.toShort()
+
+                            audio_chunk[i] = ((aux - dclvl) * knorm).toShort()
+                            aux = 0
                         }
-                        mAudioTrack.stop()
-                        Thread.yield()                                          //Suspendo el thread hasta que cambien los switchs
+
                     }
                     else
                     {
+                        // Este pedazo de codigo es para cuando se usan los buffers internos
+
+
                         knorm = 16 / canCanales
 
-                        for (i in 0 until (audio_chunkS_sam-1)) {
+                        for (i in 0 until (audio_chunk_sam-1)) {
 //                            aux += bufSin1[last_Pr + i] * sw_status[0] * sb_vol[0]         //Canal 1
 //                            aux += bufSin2[last_Pr + i] * sw_status[1] * sb_vol[1]         //Canal 2
 //                            aux += bufSin3[last_Pr + i] * sw_status[2] * sb_vol[2]         //Canal 3
@@ -197,21 +202,21 @@ class AudioActivity : AppCompatActivity() {
                             aux = 0
                         }
 
-                        last_Pr += audio_chunkS_sam
-                        last_Pr %= bufSin1.size
-
-                        semEnvio.release()
-
                         if(mAudioTrack.playState == PLAYSTATE_STOPPED)
                         {
                             mAudioTrack.play()
                         }
 
-                        // Demora que simula la recepcion de datos nuevos, ese "-1" hace que luego
-                        // de varias reproducciones genere latencia en el encendido y apagaoo de los switchs
-                        Thread.sleep(audio_chunkS.toLong()-1)
                     }
+
+                    last_Pr += audio_chunk_sam
+                    last_Pr %= bufSin1.size
+
+
+                    // Mando al audio sink
+                    mAudioTrack.write(audio_chunk, 0, audio_chunk_sam, AudioTrack.WRITE_BLOCKING)
                 }
+
             }
         }
 
@@ -358,9 +363,9 @@ class AudioActivity : AppCompatActivity() {
         else
         {
             /*
-            mAudioTrack.write(bufSin1, 0, audio_chunkS_sam, AudioTrack.WRITE_BLOCKING)        //Toma del buffer sinc nada mas
+            mAudioTrack.write(bufSin1, 0, audio_chunk_sam, AudioTrack.WRITE_BLOCKING)        //Toma del buffer sinc nada mas
 
-            last_Pr = audio_chunkS_sam                                       // Sincronizo los indices para que esten en el mismo lugar
+            last_Pr = audio_chunk_sam                                       // Sincronizo los indices para que esten en el mismo lugar
 
              */
         }
@@ -391,6 +396,7 @@ class AudioActivity : AppCompatActivity() {
                 Log.e("Config Socket", "Uniendose al grupo")
                 s.joinGroup(group)
                 Log.e("Config Socket", "Socket OK - Esperando paquetes")
+
 
 
                 /*
