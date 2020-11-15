@@ -52,8 +52,9 @@ class AudioActivity : AppCompatActivity() {
 
 
     //Indices
-    var last_RX = 0                                     // Ultimo dato del buffer Rx enviado
-    var last_Pr = 0                                     // Ultimo dato del buffer Procesado enviado
+    var last_RX = 0                                     // Ultimo dato del buffer Rx Recivido
+    var last_Pr = 0                                     // Ultimo dato del buffer Rx Mandado a procesar
+    var last_Au = 0                                     // Ultimo dato del buffer enviado Audio sink
 
 
     // Datos del audio
@@ -71,7 +72,7 @@ class AudioActivity : AppCompatActivity() {
 
 
     //Buffers
-    private var bufferRx = ByteArray(48100)
+    private var bufferRx = ByteArray(audio_chunk_sam*100)          //ByteArray(buff_recv*100)
     private var bufferProcesado = ShortArray(audio_chunk_sam)
     private var audio_chunk = ShortArray(audio_chunk_sam)
     private var audio_ch1 = ShortArray(audio_chunk_sam)
@@ -84,8 +85,8 @@ class AudioActivity : AppCompatActivity() {
     // Buffers de tonos auxiliares
     private val bufSin1 = createSinWaveBuffer(500.0, 3000)
     private val bufSin2 = createSinWaveBuffer(1000.0, 3000)
-    private val bufSin3 = createSinWaveBuffer(2000.0, 3000)
-    private val bufSin4 = createSinWaveBuffer(4000.0, 3000)
+    private val bufSin3 = createSinWaveBuffer(1500.0, 3000)
+    private val bufSin4 = createSinWaveBuffer(2000.0, 3000)
 
 
     //Estado de los switches y seekbars
@@ -121,14 +122,14 @@ class AudioActivity : AppCompatActivity() {
 
                 if (recepcion == true) {
                     for (i in 0 until audio_chunk_sam step 8) {
-                        audio_ch1[i] = ((bufferRx[last_RX + i + 0].toUByte().toInt() + (bufferRx[last_RX + i + 1].toInt() shl 8)) - 2047).toShort()
-                        audio_ch2[i] = ((bufferRx[last_RX + i + 2].toUByte().toInt() + (bufferRx[last_RX + i + 3].toInt() shl 8)) - 2047).toShort()
-                        audio_ch3[i] = ((bufferRx[last_RX + i + 4].toUByte().toInt() + (bufferRx[last_RX + i + 5].toInt() shl 8)) - 2047).toShort()
-                        audio_ch4[i] = ((bufferRx[last_RX + i + 6].toUByte().toInt() + (bufferRx[last_RX + i + 7].toInt() shl 8)) - 2047).toShort()
+                        audio_ch1[i] = ((bufferRx[last_Pr + i + 0].toUByte().toInt() + (bufferRx[last_Pr + i + 1].toInt() shl 8)) - 2047).toShort()
+                        audio_ch2[i] = ((bufferRx[last_Pr + i + 2].toUByte().toInt() + (bufferRx[last_Pr + i + 3].toInt() shl 8)) - 2047).toShort()
+                        audio_ch3[i] = ((bufferRx[last_Pr + i + 4].toUByte().toInt() + (bufferRx[last_Pr + i + 5].toInt() shl 8)) - 2047).toShort()
+                        audio_ch4[i] = ((bufferRx[last_Pr + i + 6].toUByte().toInt() + (bufferRx[last_Pr + i + 7].toInt() shl 8)) - 2047).toShort()
                     }
 
-                    last_RX += audio_chunk_sam
-                    last_RX %= bufferRx.size
+                    last_Pr += audio_chunk_sam
+                    last_Pr %= bufferRx.size
                 }
                 else
                 {
@@ -168,10 +169,10 @@ class AudioActivity : AppCompatActivity() {
 
                         for (i in 0 until (audio_chunk_sam-1)) {
 
-                            aux += audio_ch1[last_Pr + i] * sw_status[0]          //Canal 1
-                            aux += audio_ch2[last_Pr + i] * sw_status[1]          //Canal 2
-                            aux += audio_ch3[last_Pr + i] * sw_status[2]          //Canal 3
-                            aux += audio_ch4[last_Pr + i] * sw_status[3]          //Canal 4
+                            aux += audio_ch1[last_Au + i] * sw_status[0]          //Canal 1
+                            aux += audio_ch2[last_Au + i] * sw_status[1]          //Canal 2
+                            aux += audio_ch3[last_Au + i] * sw_status[2]          //Canal 3
+                            aux += audio_ch4[last_Au + i] * sw_status[3]          //Canal 4
 
 
                             audio_chunk[i] = ((aux - dclvl) * knorm).toShort()
@@ -182,20 +183,18 @@ class AudioActivity : AppCompatActivity() {
                     else
                     {
                         // Este pedazo de codigo es para cuando se usan los buffers internos
-
-
                         knorm = 16 / canCanales
 
                         for (i in 0 until (audio_chunk_sam-1)) {
-//                            aux += bufSin1[last_Pr + i] * sw_status[0] * sb_vol[0]         //Canal 1
-//                            aux += bufSin2[last_Pr + i] * sw_status[1] * sb_vol[1]         //Canal 2
-//                            aux += bufSin3[last_Pr + i] * sw_status[2] * sb_vol[2]         //Canal 3
-//                            aux += bufSin4[last_Pr + i] * sw_status[3] * sb_vol[3]         //Canal 4
+//                            aux += bufSin1[last_Au + i] * sw_status[0] * sb_vol[0]         //Canal 1
+//                            aux += bufSin2[last_Au + i] * sw_status[1] * sb_vol[1]         //Canal 2
+//                            aux += bufSin3[last_Au + i] * sw_status[2] * sb_vol[2]         //Canal 3
+//                            aux += bufSin4[last_Au + i] * sw_status[3] * sb_vol[3]         //Canal 4
 
-                            aux += bufSin1[last_Pr + i] * sw_status[0]          //Canal 1
-                            aux += bufSin2[last_Pr + i] * sw_status[1]          //Canal 2
-                            aux += bufSin3[last_Pr + i] * sw_status[2]          //Canal 3
-                            aux += bufSin4[last_Pr + i] * sw_status[3]          //Canal 4
+                            aux += bufSin1[last_Au + i] * sw_status[0]          //Canal 1
+                            aux += bufSin2[last_Au + i] * sw_status[1]          //Canal 2
+                            aux += bufSin3[last_Au + i] * sw_status[2]          //Canal 3
+                            aux += bufSin4[last_Au + i] * sw_status[3]          //Canal 4
 
 
                             audio_chunk[i] = ((aux - dclvl) * knorm).toShort()
@@ -209,8 +208,8 @@ class AudioActivity : AppCompatActivity() {
 
                     }
 
-                    last_Pr += audio_chunk_sam
-                    last_Pr %= bufSin1.size
+                    last_Au += audio_chunk_sam
+                    last_Au %= bufSin1.size
 
 
                     // Mando al audio sink
@@ -365,7 +364,7 @@ class AudioActivity : AppCompatActivity() {
             /*
             mAudioTrack.write(bufSin1, 0, audio_chunk_sam, AudioTrack.WRITE_BLOCKING)        //Toma del buffer sinc nada mas
 
-            last_Pr = audio_chunk_sam                                       // Sincronizo los indices para que esten en el mismo lugar
+            last_Au = audio_chunk_sam                                       // Sincronizo los indices para que esten en el mismo lugar
 
              */
         }
@@ -399,23 +398,17 @@ class AudioActivity : AppCompatActivity() {
 
 
 
-                /*
+
                 while (power == 1) {
-//                    if (countBufferRx < 10) {
-//                        var startTime = System.nanoTime()
-//                        Log.e("Measure", "TASK took nada " + ((System.nanoTime() - startTime) / 1000000) + "mS\n")
 
-                    //datoCrudo = receive(s)
+                    datoCrudo = receive(s)
                     System.arraycopy(datoCrudo, 0, bufferRx, inBufferRx, buff_recv * 2)
-                    Thread.sleep(((sincbuffsize*1000)/samfreq).toLong())
 
-                    recp++
-                    total++
                     inBufferRx+=buff_recv*2         //Indice buffer
                     inBufferRx %= buff_recv*10      //Buffer circular
                 }
 
-                 */
+
 
 
 
