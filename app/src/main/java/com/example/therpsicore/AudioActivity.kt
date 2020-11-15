@@ -7,7 +7,6 @@ import android.media.AudioTrack
 import android.net.ConnectivityManager
 import android.os.AsyncTask
 import android.os.Build
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.os.Process
 import android.os.Process.THREAD_PRIORITY_AUDIO
@@ -15,11 +14,13 @@ import android.util.Log
 import android.widget.SeekBar
 import android.widget.Switch
 import androidx.annotation.RequiresApi
+import androidx.appcompat.app.AppCompatActivity
 import java.net.DatagramPacket
 import java.net.InetAddress
 import java.net.MulticastSocket
-import java.util.stream.IntStream
+import java.util.concurrent.Semaphore
 import kotlin.concurrent.thread
+import kotlin.math.pow
 import kotlin.math.sin
 
 
@@ -38,16 +39,15 @@ class AudioActivity : AppCompatActivity() {
     private var countBufferPlay:Int=0
     private var check=12
 
-    var datoCrudo=ByteArray(500*2)
+    var datoCrudo=ByteArray(500 * 2)
     var total=0
     var recp=0
     var plays=0
     var finalTime=0
     var carga=0
 
-    //Buffers
-    private var bufferRx = ByteArray(48100)
-    private var bufferProcesado = ByteArray(48100)
+
+
 
     //Indices
     var last_RX = 0                                     // Ultimo dato del buffer Rx enviado
@@ -62,10 +62,33 @@ class AudioActivity : AppCompatActivity() {
 
     //Variables y valores auxiliares
     var buff_recv = 481
-    var audio_chunk = 10                                // 10ms de "pedazo de audio"
-    val audio_chunk_sam = audio_chunk * (samfreq/1000)  // Audio chunk expresado en muestras
-    val recepcion = false                               // Cambiar esto a true cuando se reciva desde la BBB
-    var bufSin_index = audio_chunk_sam                  // Arranco a contar despues de la primer copa en inicializacion
+    var audio_chunkS = 10                                   // 10ms de "pedazo de audio"
+    val audio_chunkS_sam = audio_chunkS * (samfreq/1000)    // Audio chunk expresado en muestras
+    val recepcion = false                                   // Cambiar esto a true cuando se reciva desde la BBB
+    var bufSin_index = audio_chunkS_sam                     // Arranco a contar despues de la primer copia en inicializacion
+
+
+    //Buffers
+    private var bufferRx = ByteArray(48100)
+    private var bufferProcesado = ShortArray(48100)
+    private var audio_chunk = ShortArray(audio_chunkS_sam)
+
+
+    // Buffers de tonos auxiliares
+    private val bufSin1 = createSinWaveBuffer(500.0, 3000)
+    private val bufSin2 = createSinWaveBuffer(1000.0, 3000)
+    private val bufSin3 = createSinWaveBuffer(2000.0, 3000)
+    private val bufSin4 = createSinWaveBuffer(4000.0, 3000)
+
+
+    //Estado de los switches y seekbars
+    var sw_status = arrayOf(0, 0, 0, 0)    //Estado de los switchs para evitar el uso de funciones mas complejas
+    var sb_vol1 = arrayOf(0, 0, 0, 0)       //Estado de los sliders de volumen
+
+
+    //Semaforos
+    private val semEnvio: Semaphore = Semaphore(1, false)
+
 
 
     var mAudioTrack = AudioTrack(
@@ -74,18 +97,12 @@ class AudioActivity : AppCompatActivity() {
             AudioTrack.MODE_STREAM
     )
 
-    private val bufSin1 = createSinWaveBuffer(500.0, 3000)
-    private val bufSin2 = createSinWaveBuffer(1000.0, 3000)
-    private val bufSin3 = createSinWaveBuffer(5000.0, 3000)
-    private val bufSin4 = createSinWaveBuffer(10000.0, 3000)
-
 
     @RequiresApi(Build.VERSION_CODES.M)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_audio)
 
-        Thread.sleep(500)
         init_audio()
 
         rxRcv().execute()
@@ -94,43 +111,138 @@ class AudioActivity : AppCompatActivity() {
         // Pasa del bufProc al audioSink
         thread(start = true, priority = THREAD_PRIORITY_AUDIO, name = "Control Audio") {
             while(power==1) {
-                // Este if determina si estamos usando el buffer interno o la recepcion externa
-                mAudioTrack.write(bufSin1, bufSin_index, audio_chunk_sam, AudioTrack.WRITE_BLOCKING)
-                bufSin_index += audio_chunk_sam
-                bufSin_index %= bufSin1.size
 
-                //TODO reemplazar estos sleep por semaforos
-                Thread.sleep(audio_chunk.toLong() - 1 )
+                semEnvio.acquire()                          //Pido el semaforo de envio, si no esta libre es que no hay datos para enviar al sink
+
+                mAudioTrack.write(audio_chunk, 0, audio_chunkS_sam, AudioTrack.WRITE_BLOCKING)
+                //Thread.sleep(audio_chunkS.toLong() - 1)
+
                 /*
+
+
+                // Este if determina si estamos usando el buffer interno o la recepcion externa
+                // Depreciado, la discriminacion se hace ahora en el thread de procesamiento
                 if (recepcion == true) {
                     //TODO manejo interno desde el buffer de recepcion al audio sink
                 } else {
-                    mAudioTrack.write(bufSin1, bufSin_index, audio_chunk_sam, AudioTrack.WRITE_BLOCKING)
-                    bufSin_index += audio_chunk_sam
+                    mAudioTrack.write(bufSin1, bufSin_index, audio_chunkS_sam, AudioTrack.WRITE_BLOCKING)
+                    bufSin_index += audio_chunkS_sam
                     bufSin_index %= bufSin1.size
 
                     //TODO reemplazar estos sleep por semaforos
-                    Thread.sleep(audio_chunk.toLong() - 1 )
+                    Thread.sleep(audio_chunkS.toLong() - 1 )
                 }
-
-                 */
+                */
             }
         }
 
         // Thread que atiende la recepcion de datos y la separa en canales
         thread(start = true, priority = THREAD_PRIORITY_AUDIO, name = "Procesamiento y separacion Audio") {
-            var vivo = true
-            while(power==1 && vivo == true) {
+            while(power==1) {
                 // Este if determina si estamos usando el buffer interno o la recepcion externa
                 if (recepcion == true) {
                     //TODO sacar del buffer RX, separar en canales y dejar en buffer procesado
-                } else {
-                    vivo = false
-                    Thread.yield()
-                }
 
+
+
+                } else {
+
+                    var canCanales = sw_status.sum()
+                    var dclvl = 2047 * canCanales
+                    var knorm = 0
+                    var aux = 0
+
+                    if (canCanales == 0)
+                    {
+                        for (i in 0 until (audio_chunkS_sam-1)) {
+                            audio_chunk[i] = 0.toShort()
+                        }
+                    }
+                    else
+                    {
+                        knorm = 16 / canCanales
+
+                        for (i in 0 until (audio_chunkS_sam-1)) {
+//                            aux += bufSin1[last_Pr + i] * sw_status[0] * sb_vol[0]         //Canal 1
+//                            aux += bufSin2[last_Pr + i] * sw_status[1] * sb_vol[1]         //Canal 2
+//                            aux += bufSin3[last_Pr + i] * sw_status[2] * sb_vol[2]         //Canal 3
+//                            aux += bufSin4[last_Pr + i] * sw_status[3] * sb_vol[3]         //Canal 4
+
+                            aux += bufSin1[last_Pr + i] * sw_status[0]          //Canal 1
+                            aux += bufSin2[last_Pr + i] * sw_status[1]          //Canal 2
+                            aux += bufSin3[last_Pr + i] * sw_status[2]          //Canal 3
+                            aux += bufSin4[last_Pr + i] * sw_status[3]          //Canal 4
+
+
+                            audio_chunk[i] = ((aux - dclvl) * knorm).toShort()
+                            aux = 0
+                        }
+
+                        last_Pr += audio_chunkS_sam
+                        last_Pr %= bufferProcesado.size
+
+                        semEnvio.release()
+                        Thread.sleep(audio_chunkS.toLong() - 1)
+                    }
+                }
             }
         }
+
+        val switch1: Switch = findViewById(R.id.switch_ch1)
+        switch1.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked) {
+                sw_status[0] = 1
+            } else {
+                sw_status[0] = 0
+            }
+        }
+
+        val switch2: Switch = findViewById(R.id.switch_ch2)
+        switch2.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked) {
+                sw_status[1] = 1
+            } else {
+                sw_status[1] = 0
+            }
+        }
+        val switch3: Switch = findViewById(R.id.switch_ch3)
+        switch3.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked) {
+                sw_status[2] = 1
+            } else {
+                sw_status[2] = 0
+            }
+        }
+
+        val switch4: Switch = findViewById(R.id.switch_ch4)
+        switch4.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked) {
+                sw_status[3] = 1
+            } else {
+                sw_status[3] = 0
+            }
+        }
+
+
+
+
+
+
+            //Funcion que lee los switches y escribe las variables auxiliares para manejar los datos y volumen
+        /*fun switchStatus() {
+            //TODO Revisar TODA esta funcion a ver si funciona quizas haya que modificarla para que
+            // los switches actualicen el estado usando onCheckedChanged
+            // https://stackoverflow.com/questions/10576307/android-how-do-i-correctly-get-the-value-from-a-switch
+
+
+            /*
+            val volslider1 = (SeekBar) findViewById(R.id.vol_ch1)
+            val volslider2 = (SeekBar) findViewById(R.id.vol_ch2)
+            val volslider3 = (SeekBar) findViewById(R.id.vol_ch3)
+            val volslider4 = (SeekBar) findViewById(R.id.vol_ch4)
+            */
+
+         */
 
 
         /*
@@ -218,9 +330,12 @@ class AudioActivity : AppCompatActivity() {
         }
         else
         {
-            // La primera vez escribo 10 chunks porque me piacce, esto despues se va a cambiar por la recepcion
-            mAudioTrack.write(bufSin1, 0, audio_chunk_sam,AudioTrack.WRITE_BLOCKING)        //Toma del buffer sinc nada mas
+            /*
+            mAudioTrack.write(bufSin1, 0, audio_chunkS_sam, AudioTrack.WRITE_BLOCKING)        //Toma del buffer sinc nada mas
 
+            last_Pr = audio_chunkS_sam                                       // Sincronizo los indices para que esten en el mismo lugar
+
+             */
         }
 
         Log.e("ERROR", "stado atrack ${mAudioTrack.state} y ${AudioTrack.PLAYSTATE_PLAYING}\n")
@@ -233,10 +348,6 @@ class AudioActivity : AppCompatActivity() {
     internal inner class rxRcv : AsyncTask<Void, Void, String>() {
 
         var hasInternet = false
-        var cant_canales = 4                //Inicializo en 4 porque descuento los canales apagados (al principio los 4 apagados // )
-        var sw_status = arrayOf(0,0,0,0)    //Estado de los switchs para evitar el uso de funciones mas complejas
-        var vol_status = arrayOf(0,0,0,0)   //Estado de los sliders de volumen
-
 
 
         override fun doInBackground(vararg p0: Void?): String? {
@@ -283,7 +394,7 @@ class AudioActivity : AppCompatActivity() {
 
         private fun isNetworkAvailable(): Boolean {
             val connectivityManager =
-                    getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+                    getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
             val activeNetworkInfo = connectivityManager.activeNetworkInfo
             return activeNetworkInfo != null && activeNetworkInfo.isConnected
         }
@@ -292,79 +403,13 @@ class AudioActivity : AppCompatActivity() {
 
         fun receive(s: MulticastSocket):ByteArray {
             // get their responses!
-            val buf = ByteArray(buff_recv*2)
+            val buf = ByteArray(buff_recv * 2)
             val recv = DatagramPacket(buf, buf.size)
             s.receive(recv);
             return buf  //packetAsString
         }
 
-        //Funcion que toma el estado de los switchs y pone las muestras correspondientes en el buffer de reproduccion
-        fun addAudioTrack() {
 
-            bufferPlay[inBufferPlay] = 0
-
-            //Variable aux para normalizacion con cantidad de canales activos
-            var norm = sw_status.sum()
-            var dclvl = 2048 * norm
-            var aux = 0
-
-            aux += bufferRx[outBufferRx+0] * sw_status[0]           //Canal 1
-            aux += bufferRx[outBufferRx+1] * sw_status[1]           //Canal 2
-            aux += bufferRx[outBufferRx+2] * sw_status[2]           //Canal 3
-            aux += bufferRx[outBufferRx+3] * sw_status[3]           //Canal 4
-
-            //TODO Hablar con matias por el tema de la potencia que le falta a la ecuacion
-            bufferPlay[inBufferPlay]= ((aux-dclvl)*4).toShort()
-        }
-
-
-        //Funcion que lee los switches y escribe las variables auxiliares para manejar los datos y volumen
-        /*fun switchStatus() {
-            //TODO Revisar TODA esta funcion a ver si funciona quizas haya que modificarla para que
-            // los switches actualicen el estado usando onCheckedChanged
-            // https://stackoverflow.com/questions/10576307/android-how-do-i-correctly-get-the-value-from-a-switch
-
-            val switch1 = (Switch) findViewById(R.id.switch_ch1)
-            val switch2 = (Switch) findViewById(R.id.switch_ch2)
-            val switch3 = (Switch) findViewById(R.id.switch_ch3)
-            val switch4 = (Switch) findViewById(R.id.switch_ch4)
-
-            /*
-            val volslider1 = (SeekBar) findViewById(R.id.vol_ch1)
-            val volslider2 = (SeekBar) findViewById(R.id.vol_ch2)
-            val volslider3 = (SeekBar) findViewById(R.id.vol_ch3)
-            val volslider4 = (SeekBar) findViewById(R.id.vol_ch4)
-            */
-
-            //Canal 1
-            if (switch1.isCheked())
-                sw_status[0] = 1
-            else
-                sw_status[0] = 0
-
-            //Canal 2
-            if (switch2.isCheked())
-                sw_status[1] = 1
-            else
-                sw_status[1] = 0
-
-            //Canal 3
-            if (switch3.isCheked())
-                sw_status[2] = 1
-            else
-                sw_status[2] = 0
-
-            //Canal 4
-            if (switch4.isCheked())
-                sw_status[3] = 1
-            else
-                sw_status[3] = 0
-        }*/
-
-        //TODO Revisar hacer una clase para verificar el estado de los seekbar
-        fun onProgressChanged(p0: SeekBar?, p1: Int, p2: Boolean) {
-            vol_status[0] = p1
-        }
 
     }
 
@@ -379,7 +424,7 @@ class AudioActivity : AppCompatActivity() {
         val period = sampleRate.toDouble() / freq
         for (i in output.indices) {
             val angle = 2.0 * Math.PI * i.toDouble() / period
-            output[i] = ((sin(angle) * 2047f)+2047).toShort()
+            output[i] = ((sin(angle) * 2047f)+2047).toInt().toShort()
         }
         //output.forEach { println(it) }
         return output

@@ -25,30 +25,20 @@ class MainActivity : AppCompatActivity() {
         val button_prueba = findViewById<Button>(R.id.button_prueba)
         val checkBox_red = findViewById<CheckBox>(R.id.checkBox_red)
 
-        button_prueba.setOnClickListener {
+
+        when(requestLocationPermission())
+        {
+            MainActivity.PERMISSION_CODE_ACCEPTED -> getWifiSSID()
+        }
+
+        if(checkBox_red.isChecked)
+        {
+            sleep(1000)
             val intent = Intent(this, AudioActivity::class.java)
-
-            Log.d("boton", "boton prueba actividad 1 pulsado")
-
-            //startActivity(intent)
-
-            when(requestLocationPermission())
-            {
-                MainActivity.PERMISSION_CODE_ACCEPTED -> getWifiSSID()
-            }
-
-            if(checkBox_red.isChecked)
-            {
-                sleep(500)
-                val intent = Intent(this, AudioActivity::class.java)
-                startActivity(intent)
-            }
-            else {
-                openDialog()
-            }
-
-
-
+            startActivity(intent)
+        }
+        else {
+            openDialog()
         }
     }
 
