@@ -22,7 +22,6 @@ import java.net.InetAddress
 import java.net.MulticastSocket
 import java.util.concurrent.Semaphore
 import kotlin.concurrent.thread
-import kotlin.math.pow
 import kotlin.math.sin
 
 
@@ -94,8 +93,15 @@ class AudioActivity : AppCompatActivity() {
     var sb_vol1 = arrayOf(0, 0, 0, 0)       //Estado de los sliders de volumen
 
 
+    // Variables auxiliares de audio
+    var canCanales = sw_status.sum()
+    var dclvl = 2047 * canCanales
+    var knorm = 0
+
+
     //Semaforos
-    private val semEnvio: Semaphore = Semaphore(1, false)
+    private val semProce: Semaphore = Semaphore(100, false)         //Dato listo para procesarse, puedo tener varios listos para procesarse
+    private val semChunk: Semaphore = Semaphore(1, false)           //Chunk de audio listo para write
 
 
 
@@ -115,12 +121,15 @@ class AudioActivity : AppCompatActivity() {
 
         rxRcv().execute()
 
-        // Thread que atiende el buffer de audio
-        // Pasa del bufProc al audioSink
-        thread(start = true, priority = THREAD_PRIORITY_AUDIO, name = "Control Audio") {
+
+        // Pasa del bufRx a los diferentes canales
+        thread(start = true, priority = THREAD_PRIORITY_AUDIO, name = "Procesamiento") {
             while(power==1) {
 
                 if (recepcion == true) {
+
+                    semProce.acquireUninterruptibly()                                   //Espero esten listos los datos desde la recepcion
+
                     for (i in 0 until audio_chunk_sam step 8) {
                         audio_ch1[i] = ((bufferRx[last_Pr + i + 0].toUByte().toInt() + (bufferRx[last_Pr + i + 1].toInt() shl 8)) - 2047).toShort()
                         audio_ch2[i] = ((bufferRx[last_Pr + i + 2].toUByte().toInt() + (bufferRx[last_Pr + i + 3].toInt() shl 8)) - 2047).toShort()
@@ -128,30 +137,42 @@ class AudioActivity : AppCompatActivity() {
                         audio_ch4[i] = ((bufferRx[last_Pr + i + 6].toUByte().toInt() + (bufferRx[last_Pr + i + 7].toInt() shl 8)) - 2047).toShort()
                     }
 
-                    last_Pr += audio_chunk_sam
-                    last_Pr %= bufferRx.size
+                    semChunk.release()
+
                 }
                 else
                 {
+                    if (canCanales != 0) {
+                        for (i in 0 until audio_chunk_sam step 1) {
+                            audio_ch1[i] = bufSin1[last_Pr + i]
+                            audio_ch2[i] = bufSin2[last_Pr + i]
+                            audio_ch3[i] = bufSin3[last_Pr + i]
+                            audio_ch4[i] = bufSin4[last_Pr + i]
+                        }
+
+                        semChunk.release()
+                    }
+
+
                     // Demora que simula la recepcion de datos nuevos, ese "-1" hace que luego
                     // de varias reproducciones genere latencia en el encendido y apagaoo de los switchs
                     Thread.sleep(audio_chunk_ms.toLong()-1)
                 }
 
-                semEnvio.release()
+
+                last_Pr += audio_chunk_sam
+                last_Pr %= bufferRx.size
+
             }
         }
 
-        // Thread que atiende la recepcion de datos y la separa en canales
-        thread(start = true, priority = THREAD_PRIORITY_AUDIO, name = "Procesamiento y envio de Audio") {
+        // Thread que pasa de los buffers de canales al audio sink
+        // Ademas afecta por los switchs y volumen
+        thread(start = true, priority = THREAD_PRIORITY_AUDIO, name = "Envio") {
             while(power==1) {
 
-                semEnvio.acquireUninterruptibly()                          //Pido el semaforo de envio, si no esta libre es que no hay datos para enviar al sink
+                semChunk.acquireUninterruptibly()                          //Pido el semaforo de envio, si no esta libre es que no hay datos para enviar al sink
 
-                var canCanales = sw_status.sum()
-                var dclvl = 2047 * canCanales
-                var knorm = 0
-                var aux = 0
 
                 if (canCanales == 0)
                 {
@@ -164,60 +185,56 @@ class AudioActivity : AppCompatActivity() {
                 }
                 else
                 {
-                    // Este if determina si estamos usando el buffer interno o la recepcion externa
-                    if (recepcion == true) {
+                    var aux = 0
 
-                        for (i in 0 until (audio_chunk_sam-1)) {
+                    for (i in 0 until (audio_chunk_sam-1)) {
 
-                            aux += audio_ch1[last_Au + i] * sw_status[0]          //Canal 1
-                            aux += audio_ch2[last_Au + i] * sw_status[1]          //Canal 2
-                            aux += audio_ch3[last_Au + i] * sw_status[2]          //Canal 3
-                            aux += audio_ch4[last_Au + i] * sw_status[3]          //Canal 4
-
-
-                            audio_chunk[i] = ((aux - dclvl) * knorm).toShort()
-                            aux = 0
-                        }
-
-                    }
-                    else
-                    {
-                        // Este pedazo de codigo es para cuando se usan los buffers internos
-                        knorm = 16 / canCanales
-
-                        for (i in 0 until (audio_chunk_sam-1)) {
-//                            aux += bufSin1[last_Au + i] * sw_status[0] * sb_vol[0]         //Canal 1
-//                            aux += bufSin2[last_Au + i] * sw_status[1] * sb_vol[1]         //Canal 2
-//                            aux += bufSin3[last_Au + i] * sw_status[2] * sb_vol[2]         //Canal 3
-//                            aux += bufSin4[last_Au + i] * sw_status[3] * sb_vol[3]         //Canal 4
-
-                            aux += bufSin1[last_Au + i] * sw_status[0]          //Canal 1
-                            aux += bufSin2[last_Au + i] * sw_status[1]          //Canal 2
-                            aux += bufSin3[last_Au + i] * sw_status[2]          //Canal 3
-                            aux += bufSin4[last_Au + i] * sw_status[3]          //Canal 4
+                        //TODO agregar el volumen
+                        aux += audio_ch1[last_Au + i] * sw_status[0]          //Canal 1
+                        aux += audio_ch2[last_Au + i] * sw_status[1]          //Canal 2
+                        aux += audio_ch3[last_Au + i] * sw_status[2]          //Canal 3
+                        aux += audio_ch4[last_Au + i] * sw_status[3]          //Canal 4
 
 
-                            audio_chunk[i] = ((aux - dclvl) * knorm).toShort()
-                            aux = 0
-                        }
-
-                        if(mAudioTrack.playState == PLAYSTATE_STOPPED)
-                        {
-                            mAudioTrack.play()
-                        }
-
+                        audio_chunk[i] = ((aux - dclvl) * knorm).toShort()
+                        aux = 0
                     }
 
                     last_Au += audio_chunk_sam
-                    last_Au %= bufSin1.size
+                    last_Au %= audio_ch1.size
 
 
                     // Mando al audio sink
                     mAudioTrack.write(audio_chunk, 0, audio_chunk_sam, AudioTrack.WRITE_BLOCKING)
+
+                    if(mAudioTrack.playState == PLAYSTATE_STOPPED)
+                    {
+                        mAudioTrack.play()
+                    }
                 }
 
             }
         }
+
+
+        fun recalcAudioAux () {
+            //Funcion que calcula todos los auxiliares para el audio
+
+            //TODO Hacer algo que "resetee" los indices de los buffers en caso de que todos los
+            // switchs estaban en OFF. Hacer un if para saber si estaban en OFF cosa de resetear los indices
+            canCanales = sw_status.sum()
+            dclvl = 2047 * canCanales
+
+            if (canCanales != 0) {
+                knorm = 16 / canCanales
+            }
+            else
+            {
+                knorm = 0
+            }
+
+        }
+
 
         val switch1: Switch = findViewById(R.id.switch_ch1)
         switch1.setOnCheckedChangeListener { _, isChecked ->
@@ -226,6 +243,7 @@ class AudioActivity : AppCompatActivity() {
             } else {
                 sw_status[0] = 0
             }
+            recalcAudioAux()
         }
 
         val switch2: Switch = findViewById(R.id.switch_ch2)
@@ -235,6 +253,7 @@ class AudioActivity : AppCompatActivity() {
             } else {
                 sw_status[1] = 0
             }
+            recalcAudioAux()
         }
         val switch3: Switch = findViewById(R.id.switch_ch3)
         switch3.setOnCheckedChangeListener { _, isChecked ->
@@ -243,6 +262,7 @@ class AudioActivity : AppCompatActivity() {
             } else {
                 sw_status[2] = 0
             }
+            recalcAudioAux()
         }
 
         val switch4: Switch = findViewById(R.id.switch_ch4)
@@ -252,7 +272,9 @@ class AudioActivity : AppCompatActivity() {
             } else {
                 sw_status[3] = 0
             }
+            recalcAudioAux()
         }
+
 
 
 
@@ -261,7 +283,6 @@ class AudioActivity : AppCompatActivity() {
 
             //Funcion que lee los switches y escribe las variables auxiliares para manejar los datos y volumen
         /*fun switchStatus() {
-            //TODO Revisar TODA esta funcion a ver si funciona quizas haya que modificarla para que
             // los switches actualicen el estado usando onCheckedChanged
             // https://stackoverflow.com/questions/10576307/android-how-do-i-correctly-get-the-value-from-a-switch
 
@@ -380,7 +401,6 @@ class AudioActivity : AppCompatActivity() {
 
         var hasInternet = false
 
-
         override fun doInBackground(vararg p0: Void?): String? {
             Process.setThreadPriority(-16)
             var auxSin=0
@@ -397,8 +417,6 @@ class AudioActivity : AppCompatActivity() {
                 Log.e("Config Socket", "Socket OK - Esperando paquetes")
 
 
-
-
                 while (power == 1) {
 
                     datoCrudo = receive(s)
@@ -407,9 +425,6 @@ class AudioActivity : AppCompatActivity() {
                     inBufferRx+=buff_recv*2         //Indice buffer
                     inBufferRx %= buff_recv*10      //Buffer circular
                 }
-
-
-
 
 
             }
@@ -426,7 +441,6 @@ class AudioActivity : AppCompatActivity() {
         }
 
 
-
         fun receive(s: MulticastSocket):ByteArray {
             // get their responses!
             val buf = ByteArray(buff_recv * 2)
@@ -438,9 +452,6 @@ class AudioActivity : AppCompatActivity() {
 
 
     }
-
-
-
 
 
     //Funcion de creacion de ondas
