@@ -1,7 +1,7 @@
 <resources>
     <string name="app_name">TherpsiCORE</string>
 
-    <string name="network_name">"\"Mora\""</string>
+    <string name="network_name">"\"linksys\""</string>
     <string name="network_pass">"\"xXxXxX\""</string>
 
     <string name="network_IP">226.1.1.1</string>

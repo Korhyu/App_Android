@@ -48,8 +48,6 @@ class AudioActivity : AppCompatActivity() {
     var carga=0
 
 
-
-
     //Indices
     var last_RX = 0                                     // Ultimo dato del buffer Rx Recivido
     var last_Pr = 0                                     // Ultimo dato del buffer Rx Mandado a procesar
@@ -274,95 +272,6 @@ class AudioActivity : AppCompatActivity() {
             }
             recalcAudioAux()
         }
-
-
-
-
-
-
-
-            //Funcion que lee los switches y escribe las variables auxiliares para manejar los datos y volumen
-        /*fun switchStatus() {
-            // los switches actualicen el estado usando onCheckedChanged
-            // https://stackoverflow.com/questions/10576307/android-how-do-i-correctly-get-the-value-from-a-switch
-
-
-            /*
-            val volslider1 = (SeekBar) findViewById(R.id.vol_ch1)
-            val volslider2 = (SeekBar) findViewById(R.id.vol_ch2)
-            val volslider3 = (SeekBar) findViewById(R.id.vol_ch3)
-            val volslider4 = (SeekBar) findViewById(R.id.vol_ch4)
-            */
-
-         */
-
-
-        /*
-        //Thread de reproduccion de audio
-        thread(start = true, priority = THREAD_PRIORITY_AUDIO, name = "Reproduccion Audio") { //THREAD_PRIORITY_AUDIO
-            while(power==1){
-                if(recp>0) {
-                    System.arraycopy(bufSin1, 0, bufferPlay, inBufferPlay, sincbuffsize)
-                    inBufferPlay += sincbuffsize
-                    inBufferPlay %= RxMaxBuf
-
-                    //Funcion Jose
-                    //Si tomamos el primer byte y lo multiplicamos por sus pesos y despues el segundo byte y hacemos lo mismo y despues sumamos el resultado sera mas eficiente?
-
-                    //Funcion Mati
-    //                    for (index in outBufferRx+2..(buff_recv * 2 - 2) step 8) {
-    //                        bufferPlay[inBufferPlay] = ((bufferRx[index].toUByte().toInt() + (bufferRx[index+1].toInt() shl 8))- 2047).toShort()
-    //                           // ((datoCrudo[index].toInt() + (datoCrudo[index + 1].toInt() shl 8))- 2047).toShort()  // ((((datoCrudo[index].toShort() + (datoCrudo[index + 1].toInt() shl 8)).toShort()) - 2047) * 16).toShort()
-    //                        inBufferPlay++
-    //                        inBufferPlay %= RxMaxBuf
-    //                    }
-                    outBufferRx += buff_recv*2
-                    outBufferRx %= buff_recv*10
-                    recp--
-                    countBufferPlay++
-
-                }
-            }
-        }
-
-        /*
-        //Super thread Jose TM
-        thread(start = true, priority = THREAD_PRIORITY_AUDIO, name = "Super Thread Jose"){
-            while(power==1){
-                if( ultima_copia < (outBufferPlay + bloque_datos) )
-                {
-                    System.arraycopy(bufSin1, 0, bufferPlay, inBufferPlay, bloque_datos)
-                    ultima_copia += bloque_datos
-                    ultima_copia %= RxMaxBuf
-
-                    Thread.sleep(2)
-                }
-                else
-                {
-                    Thread.sleep(1)
-                }
-            }
-        }
-
-         */
-
-        //Hilo que toma los datos del Buffer y los reproduce. La fucion Write es bloqueante a si que este Hilo solo se encarga de esto.
-        thread(start = true, priority = THREAD_PRIORITY_AUDIO, name = "Paso de Datos"){ //THREAD_PRIORITY_AUDIO
-            while(power==1){
-                if(countBufferPlay>=9) {
-//                    var startTime = System.nanoTime()
-                    mAudioTrack.write(bufferPlay, outBufferPlay, bloque_datos, AudioTrack.WRITE_BLOCKING)
-//                    Log.e("Measure", "TASK took nada " + ((System.nanoTime() - startTime) / 1000000) + "mS\n")
-                    plays++
-                    outBufferPlay += bloque_datos
-                    outBufferPlay %= RxMaxBuf
-                    countBufferPlay -= 8
-
-                }
-//                else{Log.e("FAlTA BUFF PLAY", "$countBufferPlay \n")}
-            }
-        }
-        */
     }
 
 
@@ -378,7 +287,7 @@ class AudioActivity : AppCompatActivity() {
         var startTime = System.nanoTime()
 
         if (recepcion == true) {
-            //TODO manejo interno desde el buffer de recepcion al audio sink
+
         }
         else
         {
@@ -403,27 +312,46 @@ class AudioActivity : AppCompatActivity() {
 
         override fun doInBackground(vararg p0: Void?): String? {
             Process.setThreadPriority(-16)
-            var auxSin=0
+
+
+
             if (isNetworkAvailable()) {
                 hasInternet = true
 
                 //TODO Revisar usar resources en vez de harcodear el IP y puerto
-                //Log.e("Config Socket", getString(R.string.network_IP))
+                Log.e("Config Socket", getString(R.string.network_IP))
                 val group = InetAddress.getByName("226.1.1.1")
-                //Log.e("Config Socket", getString(R.string.network_port))
+                Log.e("Config Socket", getString(R.string.network_port))
                 val s = MulticastSocket(4321)
                 Log.e("Config Socket", "Uniendose al grupo")
                 s.joinGroup(group)
                 Log.e("Config Socket", "Socket OK - Esperando paquetes")
 
+                // Cantidad de datos a recibir para que sea un audio_chunk
+                // hoy se envian 120 muestras de cada canal, cada muestra son 2 bytes + 2 de señalizacion
+                // 120 * 2 * 4 + 2
+
+                val cantBytes = 120*2*4+2
+                var auxContSam = 0
 
                 while (power == 1) {
-
+                    // La magia de la recepcion
                     datoCrudo = receive(s)
-                    System.arraycopy(datoCrudo, 0, bufferRx, inBufferRx, buff_recv * 2)
+                    System.arraycopy(datoCrudo, 0, bufferRx, inBufferRx, cantBytes)
 
-                    inBufferRx+=buff_recv*2         //Indice buffer
-                    inBufferRx %= buff_recv*10      //Buffer circular
+
+                    inBufferRx+=cantBytes         //Indice buffer
+                    inBufferRx %= bufferRx.size      //Buffer circular
+                    auxContSam += 120
+
+                    //TODO Aca esta la latencia, hay que rearmar esto pensando con emisor y receptor
+                    if ( (auxContSam % audio_chunk_sam) == 0)
+                    {
+                        for (i in 1 .. auxContSam/audio_chunk_sam) {
+                            semProce.release()
+                        }
+                        auxContSam = 0
+                    }
                 }
 
 
