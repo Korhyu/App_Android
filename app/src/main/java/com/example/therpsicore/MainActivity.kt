@@ -43,6 +43,7 @@ class MainActivity : AppCompatActivity() {
     }
 
 
+//TODO revisar cada 2s el wifi para ver si cambio la red y acceder
 
 
     // Verificacion del WIFI -----------------------------------------------------------------------

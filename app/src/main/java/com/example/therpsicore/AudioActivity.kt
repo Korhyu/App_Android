@@ -62,7 +62,7 @@ class AudioActivity : AppCompatActivity() {
 
     // Datos del audio
     private var samfreq = 40000
-    private var audiobuffer = 2000
+    private var audiobuffer = 120
     private var sincbuffsize = 120
     private val muestrasEnvio = 120
 
@@ -123,6 +123,11 @@ class AudioActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_audio)
+
+        //TODO Iniciar con switch 1 encendido y volumen al 100%
+        //TODO Boton play/stop colorcito, funcion cambio de color y texto
+        //TODO estetica de la app
+
 
         init_audio()
 
@@ -185,23 +190,6 @@ class AudioActivity : AppCompatActivity() {
                 }
                 else
                 {
-//                    var aux = 0
-//
-//                    for (i in last_Au until (last_Au + (cantBytes/8))) {
-//
-//                        //TODO agregar el volumen
-//                        aux += audio_ch1[i] * sw_status[0]          //Canal 1
-//                        aux += audio_ch2[i] * sw_status[1]          //Canal 2
-//                        aux += audio_ch3[i] * sw_status[2]          //Canal 3
-//                        aux += audio_ch4[i] * sw_status[3]          //Canal 4
-//
-//
-//                        audio_chunk[i] = ((aux - dclvl) * knorm).toShort()
-//                        aux = 0
-//
-//                        last_Au += cantBytes/8
-//                        last_Au %= audio_ch1.size
-//                    }
 
                     // Mando al audio sink
                     mAudioTrack.write(audio_chunk, lastAudioSink, cantBytes/8, AudioTrack.WRITE_BLOCKING)
@@ -352,6 +340,9 @@ class AudioActivity : AppCompatActivity() {
                 while (power == 1) {
                     // La magia de la recepcion
                     datoCrudo = receive(s)
+
+                    //TODO hacer discrtiminacion de los mensajes si falta alguno en el contador copiar anterior
+                    //TODO pensar que pasa si llegan paquetes en diferente orden
                     System.arraycopy(datoCrudo, 2, bufferRx, inBufferRx, cantBytes)
 
                     inBufferRx += cantBytes         //Indice buffer
@@ -365,14 +356,12 @@ class AudioActivity : AppCompatActivity() {
 
         }
 
-
         private fun isNetworkAvailable(): Boolean {
             val connectivityManager =
                     getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
             val activeNetworkInfo = connectivityManager.activeNetworkInfo
             return activeNetworkInfo != null && activeNetworkInfo.isConnected
         }
-
 
         fun receive(s: MulticastSocket):ByteArray {
             // get their responses!
@@ -381,8 +370,6 @@ class AudioActivity : AppCompatActivity() {
             s.receive(recv);
             return buf  //packetAsString
         }
-
-
 
     }
 
