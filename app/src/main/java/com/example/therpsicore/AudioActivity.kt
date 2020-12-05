@@ -34,13 +34,19 @@ class AudioActivity : AppCompatActivity() {
     private var prueba = ByteArray(999)
     private var outBufferRx:Int=0
     private var inBufferRx:Int=0
-    private var countBufferRx:Int=0
+    private var ountBufferRx:Int=0
     private var inBufferPlay:Int=0
     private var outBufferPlay:Int=0
     private var countBufferPlay:Int=0
     private var check=12
 
+
+    // hoy se envian 120 muestras de cada canal, cada muestra son 2 bytes + 2 de señalizacion
+    // 120 * 2 * 4 + 2
+    val cantBytes = 120*2*4
     var datoCrudo=ByteArray(500 * 2)
+    var contpaquetes = 0                                //Contador de paquetes redibidos
+    var contsamprep = 0                                 //Contador de muestras reproducidas
     var total=0
     var recp=0
     var plays=0
@@ -70,13 +76,13 @@ class AudioActivity : AppCompatActivity() {
 
 
     //Buffers
-    private var bufferRx = ByteArray(audio_chunk_sam*100)          //ByteArray(buff_recv*100)
+    private var bufferRx = ByteArray(480*1000)          //ByteArray(buff_recv*100)
     private var bufferProcesado = ShortArray(audio_chunk_sam)
     private var audio_chunk = ShortArray(audio_chunk_sam)
-    private var audio_ch1 = ShortArray(audio_chunk_sam)
-    private var audio_ch2 = ShortArray(audio_chunk_sam)
-    private var audio_ch3 = ShortArray(audio_chunk_sam)
-    private var audio_ch4 = ShortArray(audio_chunk_sam)
+    private var audio_ch1 = IntArray(audio_chunk_sam)
+    private var audio_ch2 = IntArray(audio_chunk_sam)
+    private var audio_ch3 = IntArray(audio_chunk_sam)
+    private var audio_ch4 = IntArray(audio_chunk_sam)
 
 
 
@@ -111,12 +117,17 @@ class AudioActivity : AppCompatActivity() {
     )
 
 
+
+    @ExperimentalUnsignedTypes
     @RequiresApi(Build.VERSION_CODES.M)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_audio)
 
         init_audio()
+
+        mAudioTrack.write(bufSin2, 0, 3*samfreq, AudioTrack.WRITE_BLOCKING)
+        Thread.sleep(3000)
 
         rxRcv().execute()
 
@@ -129,18 +140,24 @@ class AudioActivity : AppCompatActivity() {
 
                     semProce.acquireUninterruptibly()                                   //Espero esten listos los datos desde la recepcion
 
-                    for (i in 0 until audio_chunk_sam step 8) {
-                        audio_ch1[i/8] = ((bufferRx[last_Pr + i + 0].toUByte().toInt() + (bufferRx[last_Pr + i + 1].toInt() shl 8)) - 2047).toShort()
-                        audio_ch2[i/8] = ((bufferRx[last_Pr + i + 2].toUByte().toInt() + (bufferRx[last_Pr + i + 3].toInt() shl 8)) - 2047).toShort()
-                        audio_ch3[i/8] = ((bufferRx[last_Pr + i + 4].toUByte().toInt() + (bufferRx[last_Pr + i + 5].toInt() shl 8)) - 2047).toShort()
-                        audio_ch4[i/8] = ((bufferRx[last_Pr + i + 6].toUByte().toInt() + (bufferRx[last_Pr + i + 7].toInt() shl 8)) - 2047).toShort()
+                    for (i in 0 until cantBytes step 8) {
+                        audio_ch1[i/8] = ((bufferRx[last_Pr + i + 0].toUByte().toInt() + (bufferRx[last_Pr + i + 1].toInt() shl 8)))
+                        audio_ch2[i/8] = ((bufferRx[last_Pr + i + 2].toUByte().toInt() + (bufferRx[last_Pr + i + 3].toInt() shl 8)))
+                        audio_ch3[i/8] = ((bufferRx[last_Pr + i + 4].toUByte().toInt() + (bufferRx[last_Pr + i + 5].toInt() shl 8)))
+                        audio_ch4[i/8] = ((bufferRx[last_Pr + i + 6].toUByte().toInt() + (bufferRx[last_Pr + i + 7].toInt() shl 8)))
                     }
 
+
+
                     semChunk.release()
+
+                    last_Pr += cantBytes
+                    last_Pr %= bufferRx.size
 
                 }
                 else
                 {
+                    /*
                     if (canCanales != 0) {
                         for (i in 0 until audio_chunk_sam step 1) {
                             audio_ch1[i] = bufSin1[last_Pr + i]
@@ -152,15 +169,19 @@ class AudioActivity : AppCompatActivity() {
                         semChunk.release()
                     }
 
+                     */
+
 
                     // Demora que simula la recepcion de datos nuevos, ese "-1" hace que luego
                     // de varias reproducciones genere latencia en el encendido y apagaoo de los switchs
                     Thread.sleep(audio_chunk_ms.toLong()-1)
+
+                    last_Pr += audio_chunk_sam
+                    last_Pr %= bufferRx.size
                 }
 
 
-                last_Pr += audio_chunk_sam
-                last_Pr %= bufferRx.size
+
 
             }
         }
@@ -202,7 +223,7 @@ class AudioActivity : AppCompatActivity() {
                     }
                     else
                     {
-                        for (i in 0 until (audio_chunk_sam/2-1)) {
+                        for (i in 0 until (cantBytes/8)) {
 
                             //TODO agregar el volumen
                             aux += audio_ch1[last_Au + i] * sw_status[0]          //Canal 1
@@ -221,7 +242,8 @@ class AudioActivity : AppCompatActivity() {
 
 
                     // Mando al audio sink
-                    mAudioTrack.write(audio_chunk, 0, audio_chunk_sam, AudioTrack.WRITE_BLOCKING)
+                    mAudioTrack.write(audio_chunk, 0, cantBytes/8, AudioTrack.WRITE_BLOCKING)
+                    contsamprep ++
 
                     if(mAudioTrack.playState == PLAYSTATE_STOPPED)
                     {
@@ -231,6 +253,23 @@ class AudioActivity : AppCompatActivity() {
 
             }
         }
+
+
+        thread(start = true, priority = 10, name = "Informacion") {
+            while (power == 1) {
+                //Thread de log e informacion
+
+                //Log.e("ERROR", "stado atrack ${mAudioTrack.state} y ${AudioTrack.PLAYSTATE_PLAYING}\n")
+                Log.i("Informacion", "Paquetes recibidos ${contpaquetes}\n")
+                Log.i("Informacion", "Paquetes reproducidos  ${contsamprep}\n")
+                //Log.i("Informacion", "stado atrack ${mAudioTrack.state} y ${AudioTrack.PLAYSTATE_PLAYING}\n")
+                //Log.e("ERROR", "stado atrack ${mAudioTrack.state} y ${AudioTrack.PLAYSTATE_PLAYING}\n")
+                //Log.e("Measure", "TASK took write 3seg: " + ((System.nanoTime() - startTime) / 1000000) + "mS\n")
+
+                Thread.sleep(5000)
+            }
+
+            }
 
 
         fun recalcAudioAux () {
@@ -300,8 +339,6 @@ class AudioActivity : AppCompatActivity() {
 
         mAudioTrack.play()                 //mAudioTrack.stop();
 
-        Log.e("ERROR", "stado atrack ${mAudioTrack.state} y ${AudioTrack.PLAYSTATE_PLAYING}\n")
-
         var startTime = System.nanoTime()
 
         if (recepcion == true) {
@@ -316,9 +353,6 @@ class AudioActivity : AppCompatActivity() {
 
              */
         }
-
-        Log.e("ERROR", "stado atrack ${mAudioTrack.state} y ${AudioTrack.PLAYSTATE_PLAYING}\n")
-        Log.e("Measure", "TASK took write 3seg: " + ((System.nanoTime() - startTime) / 1000000) + "mS\n")
     }
 
 
@@ -337,39 +371,30 @@ class AudioActivity : AppCompatActivity() {
                 hasInternet = true
 
                 //TODO Revisar usar resources en vez de harcodear el IP y puerto
-                Log.e("Config Socket", getString(R.string.network_IP))
+                Log.i("Config Socket", getString(R.string.network_IP))
                 val group = InetAddress.getByName("226.1.1.1")
-                Log.e("Config Socket", getString(R.string.network_port))
+                Log.i("Config Socket", getString(R.string.network_port))
                 val s = MulticastSocket(4321)
-                Log.e("Config Socket", "Uniendose al grupo")
+                Log.i("Config Socket", "Uniendose al grupo")
                 s.joinGroup(group)
-                Log.e("Config Socket", "Socket OK - Esperando paquetes")
+                Log.i("Config Socket", "Socket OK - Esperando paquetes")
 
                 // Cantidad de datos a recibir para que sea un audio_chunk
                 // hoy se envian 120 muestras de cada canal, cada muestra son 2 bytes + 2 de señalizacion
                 // 120 * 2 * 4 + 2
 
-                val cantBytes = 120*2*4
-                var auxContSam = 0
-
                 while (power == 1) {
                     // La magia de la recepcion
                     datoCrudo = receive(s)
-                    System.arraycopy(datoCrudo, 2, bufferRx, inBufferRx, cantBytes-2)
+                    System.arraycopy(datoCrudo, 2, bufferRx, inBufferRx, cantBytes)
 
 
                     inBufferRx += cantBytes         //Indice buffer
                     inBufferRx %= bufferRx.size      //Buffer circular
-                    auxContSam += muestrasEnvio
 
-                    //TODO Aca esta la latencia, hay que rearmar esto pensando con emisor y receptor
-                    if ( (auxContSam / audio_chunk_sam) >= 1)
-                    {
-                        for (i in 1 .. auxContSam/audio_chunk_sam) {
-                            semProce.release()
-                            auxContSam -= muestrasEnvio
-                        }
-                    }
+                    contpaquetes++
+                    semProce.release()
+
                 }
             }
             return "terminamo"
