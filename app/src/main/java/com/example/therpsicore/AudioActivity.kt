@@ -58,13 +58,14 @@ class AudioActivity : AppCompatActivity() {
     private var samfreq = 40000
     private var audiobuffer = 2000
     private var sincbuffsize = 120
+    private val muestrasEnvio = 120
 
 
     //Variables y valores auxiliares
     var buff_recv = 481
     var audio_chunk_ms = 10                                     // Bloque de audio a escribir en el sink expresado en ms
     val audio_chunk_sam = audio_chunk_ms * (samfreq/1000)       // Audio chunk expresado en muestras
-    val recepcion = false                                       // Cambiar esto a true cuando se reciva desde la BBB
+    val recepcion = true                                       // Cambiar esto a true cuando se reciba desde la BBB
     var bufSin_index = audio_chunk_sam                          // Arranco a contar despues de la primer copia en inicializacion
 
 
@@ -98,8 +99,8 @@ class AudioActivity : AppCompatActivity() {
 
 
     //Semaforos
-    private val semProce: Semaphore = Semaphore(100, false)         //Dato listo para procesarse, puedo tener varios listos para procesarse
-    private val semChunk: Semaphore = Semaphore(1, false)           //Chunk de audio listo para write
+    private val semProce: Semaphore = Semaphore(0, false)         //Dato listo para procesarse, puedo tener varios listos para procesarse
+    private val semChunk: Semaphore = Semaphore(0, false)           //Chunk de audio listo para write
 
 
 
@@ -129,10 +130,10 @@ class AudioActivity : AppCompatActivity() {
                     semProce.acquireUninterruptibly()                                   //Espero esten listos los datos desde la recepcion
 
                     for (i in 0 until audio_chunk_sam step 8) {
-                        audio_ch1[i] = ((bufferRx[last_Pr + i + 0].toUByte().toInt() + (bufferRx[last_Pr + i + 1].toInt() shl 8)) - 2047).toShort()
-                        audio_ch2[i] = ((bufferRx[last_Pr + i + 2].toUByte().toInt() + (bufferRx[last_Pr + i + 3].toInt() shl 8)) - 2047).toShort()
-                        audio_ch3[i] = ((bufferRx[last_Pr + i + 4].toUByte().toInt() + (bufferRx[last_Pr + i + 5].toInt() shl 8)) - 2047).toShort()
-                        audio_ch4[i] = ((bufferRx[last_Pr + i + 6].toUByte().toInt() + (bufferRx[last_Pr + i + 7].toInt() shl 8)) - 2047).toShort()
+                        audio_ch1[i/8] = ((bufferRx[last_Pr + i + 0].toUByte().toInt() + (bufferRx[last_Pr + i + 1].toInt() shl 8)) - 2047).toShort()
+                        audio_ch2[i/8] = ((bufferRx[last_Pr + i + 2].toUByte().toInt() + (bufferRx[last_Pr + i + 3].toInt() shl 8)) - 2047).toShort()
+                        audio_ch3[i/8] = ((bufferRx[last_Pr + i + 4].toUByte().toInt() + (bufferRx[last_Pr + i + 5].toInt() shl 8)) - 2047).toShort()
+                        audio_ch4[i/8] = ((bufferRx[last_Pr + i + 6].toUByte().toInt() + (bufferRx[last_Pr + i + 7].toInt() shl 8)) - 2047).toShort()
                     }
 
                     semChunk.release()
@@ -185,21 +186,38 @@ class AudioActivity : AppCompatActivity() {
                 {
                     var aux = 0
 
-                    for (i in 0 until (audio_chunk_sam-1)) {
+                    if (recepcion == false) {
+                        for (i in 0 until (audio_chunk_sam - 1)) {
 
-                        //TODO agregar el volumen
-                        aux += audio_ch1[last_Au + i] * sw_status[0]          //Canal 1
-                        aux += audio_ch2[last_Au + i] * sw_status[1]          //Canal 2
-                        aux += audio_ch3[last_Au + i] * sw_status[2]          //Canal 3
-                        aux += audio_ch4[last_Au + i] * sw_status[3]          //Canal 4
+                            //TODO agregar el volumen
+                            aux += audio_ch1[last_Au + i] * sw_status[0]          //Canal 1
+                            aux += audio_ch2[last_Au + i] * sw_status[1]          //Canal 2
+                            aux += audio_ch3[last_Au + i] * sw_status[2]          //Canal 3
+                            aux += audio_ch4[last_Au + i] * sw_status[3]          //Canal 4
 
 
-                        audio_chunk[i] = ((aux - dclvl) * knorm).toShort()
-                        aux = 0
+                            audio_chunk[i] = ((aux - dclvl) * knorm).toShort()
+                            aux = 0
+                        }
                     }
+                    else
+                    {
+                        for (i in 0 until (audio_chunk_sam/2-1)) {
 
-                    last_Au += audio_chunk_sam
-                    last_Au %= audio_ch1.size
+                            //TODO agregar el volumen
+                            aux += audio_ch1[last_Au + i] * sw_status[0]          //Canal 1
+                            aux += audio_ch2[last_Au + i] * sw_status[1]          //Canal 2
+                            aux += audio_ch3[last_Au + i] * sw_status[2]          //Canal 3
+                            aux += audio_ch4[last_Au + i] * sw_status[3]          //Canal 4
+
+
+                            audio_chunk[i] = ((aux - dclvl) * knorm).toShort()
+                            aux = 0
+
+                            last_Au += audio_chunk_sam
+                            last_Au %= audio_ch1.size
+                        }
+                    }
 
 
                     // Mando al audio sink
@@ -331,30 +349,28 @@ class AudioActivity : AppCompatActivity() {
                 // hoy se envian 120 muestras de cada canal, cada muestra son 2 bytes + 2 de señalizacion
                 // 120 * 2 * 4 + 2
 
-                val cantBytes = 120*2*4+2
+                val cantBytes = 120*2*4
                 var auxContSam = 0
 
                 while (power == 1) {
                     // La magia de la recepcion
                     datoCrudo = receive(s)
-                    System.arraycopy(datoCrudo, 0, bufferRx, inBufferRx, cantBytes)
+                    System.arraycopy(datoCrudo, 2, bufferRx, inBufferRx, cantBytes-2)
 
 
-                    inBufferRx+=cantBytes         //Indice buffer
+                    inBufferRx += cantBytes         //Indice buffer
                     inBufferRx %= bufferRx.size      //Buffer circular
-                    auxContSam += 120
+                    auxContSam += muestrasEnvio
 
                     //TODO Aca esta la latencia, hay que rearmar esto pensando con emisor y receptor
-                    if ( (auxContSam % audio_chunk_sam) == 0)
+                    if ( (auxContSam / audio_chunk_sam) >= 1)
                     {
                         for (i in 1 .. auxContSam/audio_chunk_sam) {
                             semProce.release()
+                            auxContSam -= muestrasEnvio
                         }
-                        auxContSam = 0
                     }
                 }
-
-
             }
             return "terminamo"
 
