@@ -17,6 +17,9 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import java.lang.Thread.sleep
 
+
+val DEBUG = true
+
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -24,21 +27,25 @@ class MainActivity : AppCompatActivity() {
 
         val button_prueba = findViewById<Button>(R.id.button_prueba)
         val checkBox_red = findViewById<CheckBox>(R.id.checkBox_red)
+        var appEncendida = false
+        var dialogshowed = false
 
+        while (!appEncendida) {
+            when (requestLocationPermission()) {
+                MainActivity.PERMISSION_CODE_ACCEPTED -> getWifiSSID()
+            }
 
-        when(requestLocationPermission())
-        {
-            MainActivity.PERMISSION_CODE_ACCEPTED -> getWifiSSID()
-        }
-
-        if(checkBox_red.isChecked)
-        {
-            sleep(1000)
-            val intent = Intent(this, AudioActivity::class.java)
-            startActivity(intent)
-        }
-        else {
-            openDialog()
+            if (checkBox_red.isChecked or DEBUG) {
+                //sleep(1000)
+                val intent = Intent(this, AudioActivity::class.java)
+                appEncendida = true
+                startActivity(intent)
+            } else {
+                if (!dialogshowed) {
+                    openDialog()
+                    dialogshowed = true
+                }
+            }
         }
     }
 

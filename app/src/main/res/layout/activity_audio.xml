@@ -2,10 +2,12 @@
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    tools:context=".AudioActivity"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/negro"
-    tools:context=".AudioActivity">
+    android:orientation="vertical"
+    android:background="@drawable/tcp2mod"
+    android:scaleType="centerCrop">
 
     <androidx.constraintlayout.widget.Guideline
         android:id="@+id/guideline1"
@@ -26,7 +28,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        app:layout_constraintGuide_percent="0.8" />
+        app:layout_constraintGuide_percent="0.5" />
 
     <Button
         android:id="@+id/button_ss"
@@ -62,11 +64,12 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:background="@color/negro"
+        android:checked="true"
         android:text="Canal1"
         android:textColor="@color/blanco"
         app:layout_constraintEnd_toStartOf="@+id/vol_ch1"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="@+id/guideline2"  />
+        app:layout_constraintTop_toTopOf="@+id/guideline2" />
 
     <SeekBar
         android:id="@+id/vol_ch1"

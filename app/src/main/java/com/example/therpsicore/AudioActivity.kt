@@ -95,7 +95,7 @@ class AudioActivity : AppCompatActivity() {
 
     //Estado de los switches y seekbars
     var sw_status = arrayOf(0, 0, 0, 0)    //Estado de los switchs para evitar el uso de funciones mas complejas
-    var sb_vol1 = arrayOf(0, 0, 0, 0)       //Estado de los sliders de volumen
+    var sb_volumen = arrayOf(0, 0, 0, 0)       //Estado de los sliders de volumen
 
 
     // Variables auxiliares de audio
@@ -226,23 +226,7 @@ class AudioActivity : AppCompatActivity() {
             }
 
 
-        fun recalcAudioAux () {
-            //Funcion que calcula todos los auxiliares para el audio
 
-            //TODO Hacer algo que "resetee" los indices de los buffers en caso de que todos los
-            // switchs estaban en OFF. Hacer un if para saber si estaban en OFF cosa de resetear los indices
-            canCanales = sw_status.sum()
-            dclvl = 2047 * canCanales
-
-            if (canCanales != 0) {
-                knorm = 16 / canCanales
-            }
-            else
-            {
-                knorm = 0
-            }
-
-        }
 
 
         val switch1: Switch = findViewById(R.id.switch_ch1)
@@ -283,31 +267,48 @@ class AudioActivity : AppCompatActivity() {
             }
             recalcAudioAux()
         }
+
+
+
+        //TODO Agregar los metodos para ver si los seekbars cambian de estado.
     }
 
 
+    private fun recalcAudioAux () {
+        //Funcion que calcula todos los auxiliares para el audio
 
+        //TODO Hacer algo que "resetee" los indices de los buffers en caso de que todos los
+        // switchs estaban en OFF. Hacer un if para saber si estaban en OFF cosa de resetear los indices
+        canCanales = sw_status.sum()
+        dclvl = 2047 * canCanales
+
+        if (canCanales != 0) {
+            knorm = 16 / canCanales
+        }
+        else
+        {
+            knorm = 0
+        }
+
+    }
 
     //Funcion de preparacion del audio
     private fun init_audio () {
 
+        //Pongo el switch1 en encendido y la barra de volumen al 50%
+        var switch1: Switch = findViewById(R.id.switch_ch1)
+        if (switch1.isChecked())
+        {
+            sw_status[0] = 1
+            recalcAudioAux()
+        }
         mAudioTrack.play()                 //mAudioTrack.stop();
 
-        var startTime = System.nanoTime()
-
-        if (recepcion == true) {
-
-        }
-        else
-        {
-            /*
-            mAudioTrack.write(bufSin1, 0, audio_chunk_sam, AudioTrack.WRITE_BLOCKING)        //Toma del buffer sinc nada mas
-
-            last_Au = audio_chunk_sam                                       // Sincronizo los indices para que esten en el mismo lugar
-
-             */
-        }
     }
+
+
+
+
 
 
 
