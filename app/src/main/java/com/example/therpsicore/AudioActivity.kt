@@ -13,6 +13,7 @@ import android.os.Bundle
 import android.os.Process
 import android.os.Process.THREAD_PRIORITY_AUDIO
 import android.util.Log
+import android.widget.Button
 import android.widget.SeekBar
 import android.widget.Switch
 import androidx.annotation.RequiresApi
@@ -124,7 +125,6 @@ class AudioActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_audio)
 
-        //TODO Iniciar con switch 1 encendido y volumen al 100%
         //TODO Boton play/stop colorcito, funcion cambio de color y texto
         //TODO estetica de la app
 
@@ -226,6 +226,21 @@ class AudioActivity : AppCompatActivity() {
             }
 
 
+        val playstop: Button = findViewById(R.id.button_ss)
+        playstop.setOnClickListener {
+            if(mAudioTrack.playState == PLAYSTATE_STOPPED)
+            {
+                //Hay que darle play
+                mAudioTrack.play()
+                //playstop.background("")
+            }
+            else
+            {
+                //Hay que darle stop
+                mAudioTrack.stop()
+            }
+
+        }
 
 
 
