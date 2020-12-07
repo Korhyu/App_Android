@@ -5,6 +5,7 @@
     tools:context=".AudioActivity"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:keepScreenOn="true"
     android:orientation="vertical"
     android:background="@drawable/tcp2mod"
     android:scaleType="centerCrop">

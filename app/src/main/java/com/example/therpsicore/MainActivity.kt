@@ -18,7 +18,7 @@ import androidx.core.content.ContextCompat
 import java.lang.Thread.sleep
 
 
-val DEBUG = true
+val DEBUG = false
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
