@@ -311,12 +311,15 @@ class AudioActivity : AppCompatActivity() {
     private fun init_audio () {
 
         //Pongo el switch1 en encendido y la barra de volumen al 50%
+        /*
         var switch1: Switch = findViewById(R.id.switch_ch1)
         if (switch1.isChecked())
         {
             sw_status[0] = 1
             recalcAudioAux()
         }
+        */
+
         mAudioTrack.play()                 //mAudioTrack.stop();
 
     }
