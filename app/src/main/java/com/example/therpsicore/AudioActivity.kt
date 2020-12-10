@@ -172,7 +172,7 @@ class AudioActivity : AppCompatActivity() {
 
         // Thread que pasa de los buffers de canales al audio sink
         // Ademas afecta por los switchs y volumen
-        thread(start = true, priority = THREAD_PRIORITY_AUDIO, name = "Envio") {
+        thread(start = true, priority = THREAD_PRIORITY_AUDIO, name = "Reproduccion") {
             var lastAudioSink = 0
             while(power==1) {
 

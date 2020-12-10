@@ -111,10 +111,19 @@ class MainActivity : AppCompatActivity() {
         val dialogo = AlertDialog.Builder(this)
         dialogo.setTitle("Conexion WIFI ausente")
         dialogo.setMessage(
+                //TODO Ver si podemos usar los recursos del string
                 "Por favor conectese a la red correspondiende" +
+                        "\nNombre:  linksis     Pass: xXxXxXxX
+                        "\n\nLa contraseña es sin espacios y sin comillas. " +
+                        "Por favor loguee en la red correspondiente para recibir el streaming"
+
+            /*
+            "Por favor conectese a la red correspondiende" +
                         "\nNombre: "+ R.string.network_name + "\nPass: " + R.string.network_pass +
                         "\n\nLa contraseña es sin espacios y sin comillas. " +
                         "Por favor loguee en la red correspondiente para recibir el streaming"
+             */
+
         )
         dialogo.setNeutralButton("Ok", { dialogInterface: DialogInterface, i: Int -> })
         dialogo.show()
