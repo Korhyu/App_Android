@@ -18,7 +18,7 @@ import androidx.core.content.ContextCompat
 import java.lang.Thread.sleep
 
 
-val DEBUG = false
+val DEBUG = true
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -113,7 +113,7 @@ class MainActivity : AppCompatActivity() {
         dialogo.setMessage(
                 //TODO Ver si podemos usar los recursos del string
                 "Por favor conectese a la red correspondiende" +
-                        "\nNombre:  linksis     Pass: xXxXxXxX
+                        "\nNombre:  linksis     Pass: xXxXxXxX" +
                         "\n\nLa contraseña es sin espacios y sin comillas. " +
                         "Por favor loguee en la red correspondiente para recibir el streaming"
 

@@ -1,3 +1,4 @@
+
 package com.example.therpsicore
 
 import android.content.Context
@@ -152,14 +153,13 @@ class AudioActivity : AppCompatActivity() {
                     audio_ch4[i/8] = ((bufferRx[i + 6].toUByte().toInt() + (bufferRx[i + 7].toInt() shl 8)))
 
 
-                    //TODO agregar el volumen
-                    aux += audio_ch1[i/8] * sw_status[0]          //Canal 1
-                    aux += audio_ch2[i/8] * sw_status[1]          //Canal 2
-                    aux += audio_ch3[i/8] * sw_status[2]          //Canal 3
-                    aux += audio_ch4[i/8] * sw_status[3]          //Canal 4
+                    aux += audio_ch1[i/8] * sw_status[0] * sb_volumen[0]        //Canal 1
+                    aux += audio_ch2[i/8] * sw_status[1] * sb_volumen[1]        //Canal 2
+                    aux += audio_ch3[i/8] * sw_status[2] * sb_volumen[2]        //Canal 3
+                    aux += audio_ch4[i/8] * sw_status[3] * sb_volumen[3]        //Canal 4
 
 
-                    audio_chunk[i/8] = ((aux - dclvl) * knorm).toShort()
+                    audio_chunk[i/8] = ((aux/100 - dclvl) * knorm).toShort()
                     aux = 0
                 }
 
@@ -244,12 +244,70 @@ class AudioActivity : AppCompatActivity() {
 
 
 
+        // VOLUMEN -----------------------------------------------------------------
+        var vol_ch1 = findViewById<SeekBar>(R.id.vol_ch1)
+        var vol_ch2 = findViewById<SeekBar>(R.id.vol_ch2)
+        var vol_ch3 = findViewById<SeekBar>(R.id.vol_ch3)
+        var vol_ch4 = findViewById<SeekBar>(R.id.vol_ch4)
+
+        vol_ch1.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener{
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                sb_volumen[0] = progress.toInt()
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {
+            }
+
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+            }
+        })
+
+        vol_ch2.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener{
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                sb_volumen[1] = progress.toInt()
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {
+            }
+
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+            }
+        })
+
+        vol_ch3.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener{
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                sb_volumen[2] = progress.toInt()
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {
+            }
+
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+            }
+        })
+
+        vol_ch4.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener{
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                sb_volumen[3] = progress.toInt()
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {
+            }
+
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+            }
+        })
+
+
+        // CANALES -----------------------------------------------------------------
         val switch1: Switch = findViewById(R.id.switch_ch1)
         switch1.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
                 sw_status[0] = 1
+                vol_ch1.setProgress(50, true);
             } else {
                 sw_status[0] = 0
+                vol_ch1.setProgress(0, true);
             }
             recalcAudioAux()
         }
@@ -258,8 +316,10 @@ class AudioActivity : AppCompatActivity() {
         switch2.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
                 sw_status[1] = 1
+                vol_ch2.setProgress(50, true);
             } else {
                 sw_status[1] = 0
+                vol_ch2.setProgress(0, true);
             }
             recalcAudioAux()
         }
@@ -267,8 +327,10 @@ class AudioActivity : AppCompatActivity() {
         switch3.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
                 sw_status[2] = 1
+                vol_ch3.setProgress(50, true);
             } else {
                 sw_status[2] = 0
+                vol_ch3.setProgress(0, true);
             }
             recalcAudioAux()
         }
@@ -277,15 +339,16 @@ class AudioActivity : AppCompatActivity() {
         switch4.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
                 sw_status[3] = 1
+                vol_ch4.setProgress(50, true);
             } else {
                 sw_status[3] = 0
+                vol_ch4.setProgress(0, true);
             }
             recalcAudioAux()
         }
 
 
 
-        //TODO Agregar los metodos para ver si los seekbars cambian de estado.
     }
 
 
