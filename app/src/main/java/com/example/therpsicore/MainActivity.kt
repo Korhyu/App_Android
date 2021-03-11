@@ -18,7 +18,7 @@ import androidx.core.content.ContextCompat
 import java.lang.Thread.sleep
 
 
-val DEBUG = true
+val DEBUG = false
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -31,21 +31,21 @@ class MainActivity : AppCompatActivity() {
         var dialogshowed = false
 
         while (!appEncendida) {
-            when (requestLocationPermission()) {
-                MainActivity.PERMISSION_CODE_ACCEPTED -> getWifiSSID()
-            }
-
-            if (checkBox_red.isChecked or DEBUG) {
-                //sleep(1000)
+//            when (requestLocationPermission()) {
+//                MainActivity.PERMISSION_CODE_ACCEPTED -> getWifiSSID()
+//            }
+//
+//            if (checkBox_red.isChecked or DEBUG) {
+//                //sleep(1000)
                 val intent = Intent(this, AudioActivity::class.java)
                 appEncendida = true
                 startActivity(intent)
-            } else {
-                if (!dialogshowed) {
-                    openDialog()
-                    dialogshowed = true
-                }
-            }
+//            } else {
+//                if (!dialogshowed) {
+//                    openDialog()
+//                    dialogshowed = true
+//                }
+//            }
         }
     }
 
@@ -113,7 +113,7 @@ class MainActivity : AppCompatActivity() {
         dialogo.setMessage(
                 //TODO Ver si podemos usar los recursos del string
                 "Por favor conectese a la red correspondiende" +
-                        "\nNombre:  linksis     Pass: xXxXxXxX" +
+                        "\nNombre:  linksis     Pass: xXxXxXxX"+
                         "\n\nLa contraseña es sin espacios y sin comillas. " +
                         "Por favor loguee en la red correspondiente para recibir el streaming"
 
